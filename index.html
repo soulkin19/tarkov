@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D風 ボットPvEタクティカルシューター - オート射撃版</title>
+    <title>3D風 ボットPvEタクティカルシューター - 武器選択版</title>
     <style>
         body {
             margin: 0;
@@ -21,6 +21,43 @@
             box-shadow: 0 0 40px #00aaff;
             image-rendering: pixelated;
         }
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 10, 30, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: white;
+        }
+        #start-screen h1 {
+            font-size: 48px;
+            margin-bottom: 30px;
+            text-shadow: 0 0 20px #00aaff;
+        }
+        .weapon-grid {
+            display: flex;
+            gap: 30px;
+        }
+        .weapon-btn {
+            background: #222244;
+            border: 4px solid #00aaff;
+            width: 220px;
+            padding: 20px 15px;
+            text-align: center;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 0 20px #00aaff;
+        }
+        .weapon-btn:hover {
+            transform: scale(1.1);
+            background: #334466;
+        }
+        .weapon-btn h3 { margin: 8px 0 5px; font-size: 26px; }
+        .weapon-btn p { margin: 0; font-size: 18px; color: #aaffff; }
         #ui {
             position: absolute;
             top: 20px;
@@ -73,10 +110,35 @@
 </head>
 <body>
     <canvas id="game" width="800" height="600"></canvas>
+    
+    <!-- スタート画面（武器選択） -->
+    <div id="start-screen">
+        <h1>武器を選んでスタート！</h1>
+        <div class="weapon-grid">
+            <!-- SMG -->
+            <div class="weapon-btn" onclick="selectWeapon(0)">
+                <h3>🔥 SMG</h3>
+                <p>超連射<br>素早い連射で敵を掃討</p>
+            </div>
+            <!-- Assault Rifle -->
+            <div class="weapon-btn" onclick="selectWeapon(1)">
+                <h3>🛡️ アサルトライフル</h3>
+                <p>バランス最高<br>標準的な威力と連射</p>
+            </div>
+            <!-- Sniper -->
+            <div class="weapon-btn" onclick="selectWeapon(2)">
+                <h3>🎯 スナイパー</h3>
+                <p>高威力<br>1発のダメージが大きい</p>
+            </div>
+        </div>
+        <p style="margin-top:40px; font-size:20px; color:#aaffaa;">マウスを向けた方向に自動で撃ちます！</p>
+    </div>
+
     <div id="ui">
         <div>スコア: <span id="score">0</span></div>
         <div>ウェーブ: <span id="wave">1</span></div>
         <div>HP: <span id="health">100</span></div>
+        <div id="weapon-name" style="margin-top:8px; font-size:22px; color:#aaffff;"></div>
     </div>
     <div id="auto-fire">オート射撃 ON 🔥</div>
     <div id="wave-info"></div>
@@ -92,20 +154,15 @@
         const scoreEl = document.getElementById('score');
         const waveEl = document.getElementById('wave');
         const healthEl = document.getElementById('health');
+        const weaponNameEl = document.getElementById('weapon-name');
         const gameOverEl = document.getElementById('game-over');
         const finalScoreEl = document.getElementById('final-score');
         const waveInfoEl = document.getElementById('wave-info');
+        const startScreen = document.getElementById('start-screen');
 
         // ゲーム変数
         let player = { 
-            x: 400, 
-            y: 300, 
-            size: 20, 
-            speed: 6, 
-            health: 100, 
-            score: 0, 
-            lastShot: 0,
-            fireRate: 130   // オート射撃の連射速度（ms）← ここで調整可能
+            x: 400, y: 300, size: 20, speed: 6, health: 100, score: 0, lastShot: 0
         };
         let bullets = [];
         let enemyBullets = [];
@@ -113,20 +170,28 @@
         let particles = [];
         let powerups = [];
         let walls = [
-            {x: 120, y: 120, w: 220, h: 25},
-            {x: 480, y: 100, w: 25, h: 220},
-            {x: 120, y: 420, w: 220, h: 25},
-            {x: 520, y: 380, w: 25, h: 180},
-            {x: 280, y: 250, w: 180, h: 25}
+            {x: 80, y: 80, w: 240, h: 30},   // 少し広めに配置
+            {x: 480, y: 80, w: 30, h: 240},
+            {x: 80, y: 420, w: 240, h: 30},
+            {x: 520, y: 380, w: 30, h: 190},
+            {x: 260, y: 240, w: 200, h: 30},
+            {x: 620, y: 180, w: 30, h: 140}  // 新しい壁を追加（マップが広く感じるように）
         ];
         let keys = {};
         let mouseX = 400, mouseY = 300;
         let wave = 1;
-        let gameRunning = true;
+        let gameRunning = false;
         let shake = 0;
         let frame = 0;
 
-        // サウンド
+        // 武器データ（ここで選択）
+        let currentWeapon = null;
+        const weapons = [
+            { name: "SMG", fireRate: 75, damage: 1, color: "#aaffff" },   // 超連射・低威力
+            { name: "アサルト", fireRate: 130, damage: 1.5, color: "#ffff88" }, // バランス
+            { name: "スナイパー", fireRate: 380, damage: 3, color: "#ff88ff" }  // 高威力・遅い
+        ];
+
         let audioCtx;
         function playSound(type) {
             if (!audioCtx) return;
@@ -158,7 +223,6 @@
             osc.stop(audioCtx.currentTime + 0.5);
         }
 
-        // 背景の星
         let stars = [];
         for (let i = 0; i < 150; i++) {
             stars.push({ x: Math.random() * 800, y: Math.random() * 600, size: Math.random() * 3.5 + 1 });
@@ -190,6 +254,16 @@
                     break;
                 }
             }
+        }
+
+        // 弾が壁に当たるかチェック（貫通防止！）
+        function bulletHitsWall(x, y, size) {
+            for (let wall of walls) {
+                if (circleRectCollision(x, y, size, wall.x, wall.y, wall.w, wall.h)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         function spawnEnemy() {
@@ -234,15 +308,16 @@
             }
         }
 
-        // オート射撃関数（マウス方向に自動で撃つ）
+        // オート射撃（武器の性能を反映）
         function autoShoot() {
+            if (!currentWeapon) return;
             const now = Date.now();
-            if (now - player.lastShot < player.fireRate) return;
+            if (now - player.lastShot < currentWeapon.fireRate) return;
             
             const dx = mouseX - player.x;
             const dy = mouseY - player.y;
             const dist = Math.hypot(dx, dy);
-            if (dist < 40) return; // マウスが近すぎると撃たない
+            if (dist < 40) return;
             
             player.lastShot = now;
             bullets.push({
@@ -250,7 +325,8 @@
                 y: player.y,
                 vx: (dx / dist) * 24,
                 vy: (dy / dist) * 24,
-                size: 7
+                size: 7,
+                damage: currentWeapon.damage
             });
             playSound('shoot');
             shake = Math.max(shake, 2);
@@ -263,7 +339,6 @@
             ctx.fillStyle = '#0a0a22';
             ctx.fillRect(0, 0, 800, 600);
 
-            // 星
             ctx.fillStyle = '#ffffff';
             for (let star of stars) {
                 ctx.globalAlpha = 0.5 + Math.sin(frame / 8 + star.x) * 0.5;
@@ -271,7 +346,7 @@
             }
             ctx.globalAlpha = 1;
 
-            // 壁
+            // 壁描画
             ctx.fillStyle = '#555577';
             ctx.shadowBlur = 12;
             ctx.shadowColor = '#8899ff';
@@ -280,7 +355,7 @@
             }
             ctx.shadowBlur = 0;
 
-            // プレイヤー移動
+            // 移動
             let dx = 0, dy = 0;
             if (keys['w'] || keys['ArrowUp']) dy -= player.speed;
             if (keys['s'] || keys['ArrowDown']) dy += player.speed;
@@ -288,7 +363,7 @@
             if (keys['d'] || keys['ArrowRight']) dx += player.speed;
             moveWithWalls(player, dx, dy, player.size);
 
-            // オート射撃（ここが新機能！）
+            // オート射撃
             autoShoot();
 
             // プレイヤー描画
@@ -299,7 +374,6 @@
             ctx.beginPath();
             ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
             ctx.fill();
-            // 照準線
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 5;
             ctx.beginPath();
@@ -356,10 +430,18 @@
                 }
             }
 
-            // 弾更新（プレイヤー）
+            // プレイヤー弾（壁貫通防止！）
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const b = bullets[i];
-                b.x += b.vx; b.y += b.vy;
+                b.x += b.vx;
+                b.y += b.vy;
+
+                // 壁に当たったら消滅（貫通しなくなりました！）
+                if (bulletHitsWall(b.x, b.y, b.size)) {
+                    createExplosion(b.x, b.y, 6, '#ffff88');
+                    bullets.splice(i, 1);
+                    continue;
+                }
 
                 ctx.shadowBlur = 15;
                 ctx.shadowColor = '#22ff88';
@@ -374,7 +456,7 @@
 
                 for (let j = enemies.length - 1; j >= 0; j--) {
                     if (checkCollision(b, enemies[j])) {
-                        enemies[j].hp--;
+                        enemies[j].hp -= b.damage;
                         bullets.splice(i, 1);
                         playSound('hit');
                         if (enemies[j].hp <= 0) {
@@ -392,10 +474,15 @@
                 }
             }
 
-            // 敵弾更新
+            // 敵弾（壁貫通防止も適用）
             for (let i = enemyBullets.length - 1; i >= 0; i--) {
                 const b = enemyBullets[i];
                 b.x += b.vx; b.y += b.vy;
+
+                if (bulletHitsWall(b.x, b.y, b.size)) {
+                    enemyBullets.splice(i, 1);
+                    continue;
+                }
 
                 ctx.shadowBlur = 12;
                 ctx.shadowColor = '#ff4444';
@@ -417,7 +504,7 @@
                 }
             }
 
-            // パーティクル
+            // パーティクル・回復アイテム（省略せず同じ）
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
                 p.x += p.vx; p.y += p.vy;
@@ -430,7 +517,6 @@
             }
             ctx.globalAlpha = 1;
 
-            // 回復アイテム
             for (let i = powerups.length - 1; i >= 0; i--) {
                 const p = powerups[i];
                 ctx.shadowBlur = 20;
@@ -451,7 +537,6 @@
                 }
             }
 
-            // 次のウェーブ
             if (enemies.length === 0) {
                 wave++;
                 waveInfoEl.textContent = `ウェーブ ${wave} 開始！`;
@@ -464,7 +549,6 @@
                 }
             }
 
-            // シェイク
             if (shake > 0) {
                 const offsetX = (Math.random() * 2 - 1) * shake;
                 const offsetY = (Math.random() * 2 - 1) * shake;
@@ -472,7 +556,6 @@
                 ctx.translate(offsetX, offsetY);
             }
 
-            // UI更新
             scoreEl.textContent = player.score;
             waveEl.textContent = wave;
             healthEl.textContent = Math.max(0, Math.floor(player.health));
@@ -492,6 +575,17 @@
             gameOverEl.style.display = 'block';
         }
 
+        // 武器選択
+        window.selectWeapon = function(index) {
+            currentWeapon = weapons[index];
+            weaponNameEl.textContent = `武器: ${currentWeapon.name}`;
+            startScreen.style.display = 'none';
+            gameRunning = true;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            for (let i = 0; i < 5; i++) spawnEnemy();  // 最初は少なめ
+            gameLoop();
+        };
+
         // 入力
         window.addEventListener('keydown', e => keys[e.key] = true);
         window.addEventListener('keyup', e => keys[e.key] = false);
@@ -502,14 +596,7 @@
             mouseY = e.clientY - rect.top;
         });
 
-        // スタート
-        function startGame() {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            for (let i = 0; i < 6; i++) spawnEnemy();  // 最初は少し少なめ
-            gameLoop();
-        }
-
-        startGame();
+        // スタートは武器選択から
     </script>
 </body>
 </html>
