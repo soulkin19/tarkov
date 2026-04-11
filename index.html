@@ -2,52 +2,54 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Elite Infiltration: Tactical Defense</title>
+    <title>Tactical Infiltration: Overpowered Edition</title>
     <style>
-        body { background: #1a1a1a; color: #fff; text-align: center; font-family: 'Courier New', Courier, monospace; overflow: hidden; margin: 0; }
-        canvas { background: #222; display: block; margin: 0; border: none; cursor: crosshair; }
-        .ui { position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 5px; text-align: left; pointer-events: none; }
-        .timer-ui { position: fixed; top: 10px; right: 10px; font-size: 30px; color: #ff4444; }
+        body { background: #050505; color: #fff; text-align: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; margin: 0; }
+        canvas { background: #111; display: block; border: none; cursor: crosshair; }
+        .ui { position: fixed; top: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 20px; border-left: 5px solid #0ff; text-align: left; pointer-events: none; min-width: 200px; }
+        .timer-ui { position: fixed; top: 20px; right: 20px; font-size: 40px; font-weight: bold; color: #f00; text-shadow: 0 0 10px #f00; }
+        #msg { position: fixed; bottom: 20px; width: 100%; font-size: 18px; color: #555; }
     </style>
 </head>
 <body>
     <div class="ui">
-        [HP] <span id="hp">200</span><br>
-        [WEAPON] <span id="weaponName">Elite Auto-Rifle</span><br>
-        [STATUS] <span id="status">INFILTRATE THE EAST BASE</span>
+        <div style="font-size: 12px; color: #0ff;">CONDITION</div>
+        <div style="font-size: 24px;">HP: <span id="hp">500</span></div>
+        <div style="margin-top: 10px; font-size: 12px; color: #0ff;">EQUIPMENT</div>
+        <div id="weaponName" style="font-size: 18px;">Special Forces AR</div>
     </div>
-    <div id="timerDisplay" class="timer-ui" style="display:none;">DEFENSE: 30s</div>
+    <div id="timerDisplay" class="timer-ui" style="display:none;">TARGET SECURING: 30s</div>
+    <div id="msg">WASD to Move | 1-3 to Switch | Auto-Firing to Mouse Cursor</div>
     <canvas id="gameCanvas"></canvas>
 
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// マップ設定（画面より広く設定）
-const WORLD_WIDTH = 3000;
-const WORLD_HEIGHT = 800;
+// マップとカメラの設定
+const WORLD_WIDTH = 5000;
+const WORLD_HEIGHT = 1000;
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 let gameState = 'infiltrate'; 
 let defenseTimer = 30;
-let player = { x: 100, y: 400, size: 25, hp: 200, maxHp: 200, speed: 6, weapon: 0 };
+let player = { x: 200, y: 500, size: 22, hp: 500, maxHp: 500, speed: 8, weapon: 0 };
 let enemies = [];
 let bullets = [];
 let enemyBullets = [];
-let camera = { x: 0, y: 0 };
+let camera = { x: 0, y: 0, shake: 0 };
 
 const weapons = [
-    { name: "Elite Auto-Rifle", fireRate: 150, bulletSpeed: 15, spread: 0.05, count: 1, damage: 40 },
-    { name: "Heavy Spread", fireRate: 400, bulletSpeed: 12, spread: 0.4, count: 8, damage: 20 },
-    { name: "Rapid Vulcan", fireRate: 50, bulletSpeed: 18, spread: 0.15, count: 1, damage: 15 }
+    { name: "Spec-Ops AR", fireRate: 100, bulletSpeed: 20, spread: 0.03, count: 1, damage: 60, color: '#0ff' },
+    { name: "Devastator Shotgun", fireRate: 350, bulletSpeed: 15, spread: 0.5, count: 12, damage: 25, color: '#f0f' },
+    { name: "Gatling Cannon", fireRate: 40, bulletSpeed: 25, spread: 0.1, count: 1, damage: 20, color: '#ff0' }
 ];
 
 let lastFired = 0;
 const keys = {};
 let mouse = { x: 0, y: 0 };
 
-// 入力処理
 window.onkeydown = (e) => {
     keys[e.key.toLowerCase()] = true;
     if (e.key === '1') player.weapon = 0;
@@ -56,143 +58,119 @@ window.onkeydown = (e) => {
     document.getElementById('weaponName').innerText = weapons[player.weapon].name;
 };
 window.onkeyup = (e) => keys[e.key.toLowerCase()] = false;
-window.onmousemove = (e) => {
-    mouse.x = e.clientX;
-    mouse.y = e.clientY;
-};
+window.onmousemove = (e) => { mouse.x = e.clientX; mouse.y = e.clientY; };
 
 function spawnEnemy(isMachineGunner = false) {
-    let x, y;
-    if (gameState === 'infiltrate') {
-        x = player.x + canvas.width/2 + Math.random() * 500;
-        y = Math.random() * WORLD_HEIGHT;
-    } else {
-        // 本部防衛時は左右上下からランダム
-        const side = Math.floor(Math.random() * 4);
-        if(side === 0) { x = player.x - 600; y = Math.random()*WORLD_HEIGHT; }
-        else { x = player.x + 600; y = Math.random()*WORLD_HEIGHT; }
-    }
-    
+    let x = player.x + (Math.random() > 0.5 ? 800 : -800);
+    let y = Math.random() * WORLD_HEIGHT;
+    if (gameState === 'infiltrate') x = player.x + 900;
+
     enemies.push({
         x: x, y: y,
-        hp: isMachineGunner ? 150 : 50,
-        size: isMachineGunner ? 30 : 20,
+        hp: isMachineGunner ? 300 : 80,
+        maxHp: isMachineGunner ? 300 : 80,
+        size: isMachineGunner ? 35 : 22,
         type: isMachineGunner ? 'heavy' : 'normal',
         lastFired: 0,
-        speed: isMachineGunner ? 1 : 3,
-        fireInterval: isMachineGunner ? 200 : 1500 // マシンガン兵は高速連射
+        speed: isMachineGunner ? 1.5 : 4,
+        fireInterval: isMachineGunner ? 150 : 1200
     });
 }
 
-function shoot(fromX, fromY, targetX, targetY, isEnemy, weaponType = null) {
+function shoot(fromX, fromY, targetX, targetY, isEnemy, type = 'normal') {
     const angle = Math.atan2(targetY - fromY, targetX - fromX);
-    let config = isEnemy ? { count: 1, spread: 0, speed: 7, damage: 10 } : weapons[player.weapon];
-    
-    // マシンガン兵用設定
-    if (weaponType === 'heavy') {
-        config = { count: 1, spread: 0.2, speed: 10, damage: 5 };
-    }
+    let wp = isEnemy ? (type === 'heavy' ? {count:1, spread:0.2, speed:12, damage:8} : {count:1, spread:0, speed:8, damage:15}) : weapons[player.weapon];
 
-    for (let i = 0; i < config.count; i++) {
-        const finalAngle = angle + (Math.random() - 0.5) * (config.spread || 0);
-        const b = {
+    for (let i = 0; i < wp.count; i++) {
+        const finalAngle = angle + (Math.random() - 0.5) * wp.spread;
+        bullets.push({
             x: fromX, y: fromY,
-            vx: Math.cos(finalAngle) * (config.speed || config.bulletSpeed),
-            vy: Math.sin(finalAngle) * (config.speed || config.bulletSpeed),
-            damage: config.damage,
-            isEnemy: isEnemy
-        };
-        if (isEnemy) enemyBullets.push(b); else bullets.push(b);
+            vx: Math.cos(finalAngle) * wp.bulletSpeed,
+            vy: Math.sin(finalAngle) * wp.bulletSpeed,
+            damage: wp.damage,
+            isEnemy: isEnemy,
+            color: isEnemy ? (type === 'heavy' ? '#f0f' : '#f44') : wp.color
+        });
     }
+    if (!isEnemy) camera.shake = 5; // 発砲時の揺れ
 }
 
 function update(time) {
     if (gameState === 'gameover' || gameState === 'win') return;
 
-    // 移動
+    // 移動ロジック
     if (keys['w'] && player.y > 0) player.y -= player.speed;
     if (keys['s'] && player.y < WORLD_HEIGHT) player.y += player.speed;
     if (keys['a'] && player.x > 0) player.x -= player.speed;
     if (keys['d'] && player.x < WORLD_WIDTH) player.x += player.speed;
 
-    // カメラ追従
     camera.x = player.x - canvas.width / 2;
     camera.y = player.y - canvas.height / 2;
+    if (camera.shake > 0) {
+        camera.x += (Math.random() - 0.5) * camera.shake;
+        camera.y += (Math.random() - 0.5) * camera.shake;
+        camera.shake *= 0.9;
+    }
 
-    // 自動射撃 (マウスの方向)
-    const targetX = mouse.x + camera.x;
-    const targetY = mouse.y + camera.y;
+    // 自動射撃
+    const tx = mouse.x + camera.x;
+    const ty = mouse.y + camera.y;
     if (time - lastFired > weapons[player.weapon].fireRate) {
-        shoot(player.x, player.y, targetX, targetY, false);
+        shoot(player.x, player.y, tx, ty, false);
         lastFired = time;
     }
 
-    // 本部エリア到達判定
-    if (gameState === 'infiltrate' && player.x > WORLD_WIDTH - 400) {
+    // 本部イベント
+    if (gameState === 'infiltrate' && player.x > WORLD_WIDTH - 600) {
         gameState = 'defense';
-        document.getElementById('status').innerText = "HOLD THE POSITION!";
         document.getElementById('timerDisplay').style.display = 'block';
         let itv = setInterval(() => {
             defenseTimer--;
-            document.getElementById('timerDisplay').innerText = `DEFENSE: ${defenseTimer}s`;
-            if (defenseTimer <= 0) {
-                clearInterval(itv);
-                gameState = 'win';
-            }
+            document.getElementById('timerDisplay').innerText = `TARGET SECURING: ${defenseTimer}s`;
+            if (defenseTimer <= 0) { clearInterval(itv); gameState = 'win'; }
         }, 1000);
     }
 
-    // 敵生成ロジック
-    if (Math.random() < (gameState === 'defense' ? 0.08 : 0.02)) {
-        spawnEnemy(gameState === 'defense' && Math.random() > 0.5);
+    // 敵スポーン
+    if (Math.random() < (gameState === 'defense' ? 0.12 : 0.04)) {
+        spawnEnemy(gameState === 'defense' && Math.random() > 0.4);
     }
 
-    // 更新系
-    [bullets, enemyBullets].forEach(list => {
-        for (let i = list.length - 1; i >= 0; i--) {
-            list[i].x += list[i].vx; list[i].y += list[i].vy;
-            if (Math.abs(list[i].x - player.x) > 1000) list.splice(i, 1);
+    // 弾丸処理
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.x += b.vx; b.y += b.vy;
+        
+        if (b.isEnemy) {
+            if (Math.hypot(player.x - b.x, player.y - b.y) < player.size) {
+                player.hp -= b.damage;
+                bullets.splice(i, 1);
+                document.getElementById('hp').innerText = Math.max(0, player.hp);
+                if (player.hp <= 0) gameState = 'gameover';
+                continue;
+            }
+        } else {
+            enemies.forEach((e, ei) => {
+                if (Math.hypot(e.x - b.x, e.y - b.y) < e.size) {
+                    e.hp -= b.damage;
+                    bullets.splice(i, 1);
+                    if (e.hp <= 0) enemies.splice(ei, 1);
+                }
+            });
         }
-    });
+        if (Math.abs(b.x - player.x) > 1200) bullets.splice(i, 1);
+    }
 
-    for (let i = enemies.length - 1; i >= 0; i--) {
-        let e = enemies[i];
+    // 敵AI
+    enemies.forEach(e => {
         let dx = player.x - e.x; let dy = player.y - e.y;
         let dist = Math.sqrt(dx*dx + dy*dy);
-        
-        // AI移動
-        if (dist > 250) {
-            e.x += (dx/dist) * e.speed;
-            e.y += (dy/dist) * e.speed;
-        }
-
-        // 敵射撃
+        if (dist > 300) { e.x += (dx/dist) * e.speed; e.y += (dy/dist) * e.speed; }
         if (time - e.lastFired > e.fireInterval) {
             shoot(e.x, e.y, player.x, player.y, true, e.type);
             e.lastFired = time;
         }
-
-        // 当たり判定 (プレイヤー弾 -> 敵)
-        for (let j = bullets.length - 1; j >= 0; j--) {
-            let b = bullets[j];
-            if (Math.hypot(e.x - b.x, e.y - b.y) < e.size) {
-                e.hp -= b.damage;
-                bullets.splice(j, 1);
-                if (e.hp <= 0) { enemies.splice(i, 1); break; }
-            }
-        }
-    }
-
-    // 当たり判定 (敵弾 -> プレイヤー)
-    for (let i = enemyBullets.length - 1; i >= 0; i--) {
-        let b = enemyBullets[i];
-        if (Math.hypot(player.x - b.x, player.y - b.y) < player.size) {
-            player.hp -= b.damage;
-            enemyBullets.splice(i, 1);
-            document.getElementById('hp').innerText = Math.max(0, player.hp);
-            if (player.hp <= 0) gameState = 'gameover';
-        }
-    }
+    });
 
     draw();
     requestAnimationFrame(update);
@@ -203,49 +181,50 @@ function draw() {
     ctx.translate(-camera.x, -camera.y);
     ctx.clearRect(camera.x, camera.y, canvas.width, canvas.height);
 
-    // 地面のグリッド（広さを視覚化）
-    ctx.strokeStyle = "#333";
-    for(let x=0; x<WORLD_WIDTH; x+=100) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke();
-    }
-    for(let y=0; y<WORLD_HEIGHT; y+=100) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke();
-    }
+    // 背景グリッド
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 2;
+    for(let x=0; x<WORLD_WIDTH; x+=200) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_HEIGHT); ctx.stroke(); }
+    for(let y=0; y<WORLD_HEIGHT; y+=200) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_WIDTH,y); ctx.stroke(); }
 
     // 本部エリア
-    ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
-    ctx.fillRect(WORLD_WIDTH - 400, 0, 400, WORLD_HEIGHT);
+    ctx.fillStyle = "rgba(255, 0, 0, 0.15)";
+    ctx.fillRect(WORLD_WIDTH - 600, 0, 600, WORLD_HEIGHT);
+    ctx.strokeStyle = "#f00";
+    ctx.strokeRect(WORLD_WIDTH - 600, 0, 600, WORLD_HEIGHT);
 
     // プレイヤー
-    ctx.shadowBlur = 15; ctx.shadowColor = "cyan";
-    ctx.fillStyle = "cyan";
+    ctx.shadowBlur = 20; ctx.shadowColor = "#0ff";
+    ctx.fillStyle = "#0ff";
     ctx.beginPath(); ctx.arc(player.x, player.y, player.size, 0, Math.PI*2); ctx.fill();
     ctx.shadowBlur = 0;
 
     // 敵
     enemies.forEach(e => {
-        ctx.fillStyle = e.type === 'heavy' ? "#ff00ff" : "#ff4444";
+        ctx.fillStyle = e.type === 'heavy' ? "#f0f" : "#f44";
         ctx.beginPath(); ctx.arc(e.x, e.y, e.size, 0, Math.PI*2); ctx.fill();
-        // HPバー
-        ctx.fillStyle = "#555"; ctx.fillRect(e.x-20, e.y-35, 40, 5);
-        ctx.fillStyle = "#0f0"; ctx.fillRect(e.x-20, e.y-35, (e.hp/(e.type==='heavy'?150:50))*40, 5);
+        // HPゲージ
+        ctx.fillStyle = "#333"; ctx.fillRect(e.x-25, e.y-40, 50, 6);
+        ctx.fillStyle = e.type === 'heavy' ? "#f0f" : "#f00";
+        ctx.fillRect(e.x-25, e.y-40, (e.hp/e.maxHp)*50, 6);
     });
 
-    // 弾
-    ctx.fillStyle = "#fff";
-    bullets.forEach(b => ctx.fillRect(b.x, b.y, 8, 2));
-    ctx.fillStyle = "#ff0";
-    enemyBullets.forEach(b => ctx.fillRect(b.x, b.y, 6, 6));
+    // 弾丸
+    bullets.forEach(b => {
+        ctx.fillStyle = b.color;
+        ctx.shadowBlur = 5; ctx.shadowColor = b.color;
+        ctx.fillRect(b.x-4, b.y-4, 8, 8);
+    });
 
     ctx.restore();
 
     if (gameState === 'win') {
-        ctx.fillStyle = "gold"; ctx.font = "bold 70px sans-serif";
-        ctx.fillText("MISSION COMPLETE", canvas.width/2 - 350, canvas.height/2);
+        ctx.fillStyle = "#0ff"; ctx.font = "bold 80px sans-serif";
+        ctx.fillText("MISSION COMPLETE", canvas.width/2 - 400, canvas.height/2);
     }
     if (gameState === 'gameover') {
-        ctx.fillStyle = "red"; ctx.font = "bold 70px sans-serif";
-        ctx.fillText("MISSION FAILED", canvas.width/2 - 300, canvas.height/2);
+        ctx.fillStyle = "#f00"; ctx.font = "bold 80px sans-serif";
+        ctx.fillText("SYSTEM FAILURE", canvas.width/2 - 350, canvas.height/2);
     }
 }
 
