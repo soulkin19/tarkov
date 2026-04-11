@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D風 ボットPvEタクティカルシューター - 広々マップ版</title>
+    <title>3D風 ボットPvEタクティカルシューター - 巨大マップ版</title>
     <style>
         body {
             margin: 0;
@@ -106,14 +106,28 @@
             text-shadow: 0 0 30px #ff0000;
             z-index: 20;
         }
+        #dash-indicator {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 100, 0.9);
+            color: #111;
+            padding: 6px 20px;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
     </style>
 </head>
 <body>
     <canvas id="game" width="900" height="650"></canvas>
     
-    <!-- スタート画面（武器選択） -->
+    <!-- スタート画面 -->
     <div id="start-screen">
-        <h1>武器を選んでスタート！</h1>
+        <h1>巨大マップでスタート！</h1>
         <div class="weapon-grid">
             <div class="weapon-btn" onclick="selectWeapon(0)">
                 <h3>🔥 SMG</h3>
@@ -128,7 +142,7 @@
                 <p>高威力<br>1発のダメージが大きい</p>
             </div>
         </div>
-        <p style="margin-top:40px; font-size:20px; color:#aaffaa;">マウスを向けた方向に自動で撃ちます！</p>
+        <p style="margin-top:40px; font-size:20px; color:#aaffaa;">マウスを向けた方向に自動で撃ちます！<br>スペースでダッシュ！</p>
     </div>
 
     <div id="ui">
@@ -139,6 +153,7 @@
     </div>
     <div id="auto-fire">オート射撃 ON 🔥</div>
     <div id="wave-info"></div>
+    <div id="dash-indicator">DASH READY!</div>
     <div id="game-over">
         ゲームオーバー！<br>
         最終スコア: <span id="final-score">0</span><br>
@@ -148,6 +163,11 @@
     <script>
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
+        const WIDTH = 900;   // 画面サイズ（表示範囲）
+        const HEIGHT = 650;
+        const WORLD_WIDTH = 2200;   // 新しい巨大マップサイズ！
+        const WORLD_HEIGHT = 1600;
+
         const scoreEl = document.getElementById('score');
         const waveEl = document.getElementById('wave');
         const healthEl = document.getElementById('health');
@@ -155,42 +175,51 @@
         const gameOverEl = document.getElementById('game-over');
         const finalScoreEl = document.getElementById('final-score');
         const waveInfoEl = document.getElementById('wave-info');
+        const dashIndicator = document.getElementById('dash-indicator');
         const startScreen = document.getElementById('start-screen');
 
-        // ゲーム変数（マップを広くした！）
-        const WIDTH = 900;
-        const HEIGHT = 650;
+        // ゲーム変数
         let player = { 
-            x: WIDTH / 2, 
-            y: HEIGHT / 2, 
+            x: WORLD_WIDTH / 2, 
+            y: WORLD_HEIGHT / 2, 
             size: 20, 
-            speed: 6, 
+            speed: 6.5, 
             health: 100, 
             score: 0, 
-            lastShot: 0
+            lastShot: 0,
+            dashCooldown: 0,
+            dashTime: 0,
+            tempFireRate: 0,
+            tempSpeed: 0
         };
+
         let bullets = [];
         let enemyBullets = [];
         let enemies = [];
         let particles = [];
         let powerups = [];
         
-        // 壁配置を広めに調整（マップが広く感じるように）
+        // 巨大マップ用の壁配置（広々配置）
         let walls = [
-            {x: 100, y: 100, w: 260, h: 30},
-            {x: 550, y: 100, w: 30, h: 260},
-            {x: 100, y: 480, w: 260, h: 30},
-            {x: 600, y: 420, w: 30, h: 200},
-            {x: 300, y: 280, w: 220, h: 30},
-            {x: 720, y: 200, w: 30, h: 160}
+            {x: 180, y: 180, w: 320, h: 35},
+            {x: 1400, y: 180, w: 35, h: 320},
+            {x: 180, y: 1150, w: 320, h: 35},
+            {x: 1550, y: 980, w: 35, h: 280},
+            {x: 650, y: 520, w: 280, h: 35},
+            {x: 980, y: 780, w: 35, h: 220},
+            {x: 320, y: 820, w: 220, h: 35},
+            {x: 1680, y: 420, w: 35, h: 180}
         ];
-        
+
         let keys = {};
-        let mouseX = WIDTH / 2, mouseY = HEIGHT / 2;
+        let mouseX = WIDTH / 2, mouseY = HEIGHT / 2; // 画面上のマウス位置
+        let mouseWorldX = player.x, mouseWorldY = player.y; // 世界座標のマウス位置
         let wave = 1;
         let gameRunning = false;
         let shake = 0;
         let frame = 0;
+        let cameraX = 0;
+        let cameraY = 0;
 
         // 武器データ
         let currentWeapon = null;
@@ -226,15 +255,20 @@
                 osc.type = 'sine';
                 gain.gain.value = 0.3;
                 gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.25);
+            } else if (type === 'dash') {
+                osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                osc.type = 'sawtooth';
+                gain.gain.value = 0.4;
+                gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
             }
             osc.start();
             osc.stop(audioCtx.currentTime + 0.5);
         }
 
-        // 背景の星（広くなったマップ用に少し増やしました）
+        // 星（巨大マップ用に増量）
         let stars = [];
-        for (let i = 0; i < 180; i++) {
-            stars.push({ x: Math.random() * WIDTH, y: Math.random() * HEIGHT, size: Math.random() * 3.5 + 1 });
+        for (let i = 0; i < 280; i++) {
+            stars.push({ x: Math.random() * WORLD_WIDTH, y: Math.random() * WORLD_HEIGHT, size: Math.random() * 3.5 + 1 });
         }
 
         function checkCollision(a, b) {
@@ -265,29 +299,39 @@
             }
         }
 
-        // 新機能：画面外に出られないようにする（プレイヤー・敵共通）
-        function clampToScreen(entity, radius) {
-            entity.x = Math.max(radius, Math.min(WIDTH - radius, entity.x));
-            entity.y = Math.max(radius, Math.min(HEIGHT - radius, entity.y));
+        function clampToWorld(entity, radius) {
+            entity.x = Math.max(radius, Math.min(WORLD_WIDTH - radius, entity.x));
+            entity.y = Math.max(radius, Math.min(WORLD_HEIGHT - radius, entity.y));
         }
 
-        // 壁に当たるかチェック（弾丸貫通防止）
         function bulletHitsWall(x, y, size) {
             for (let wall of walls) {
-                if (circleRectCollision(x, y, size, wall.x, wall.y, wall.w, wall.h)) {
-                    return true;
-                }
+                if (circleRectCollision(x, y, size, wall.x, wall.y, wall.w, wall.h)) return true;
             }
             return false;
+        }
+
+        // パワーアップドロップ（新しく強化！）
+        function spawnPowerup(x, y) {
+            const rnd = Math.random();
+            if (rnd < 0.4) {
+                powerups.push({ x: x, y: y, size: 16, type: 'health', color: '#00ff88' });
+            } else if (rnd < 0.65) {
+                powerups.push({ x: x, y: y, size: 16, type: 'fireRate', color: '#ffff00' });
+            } else if (rnd < 0.85) {
+                powerups.push({ x: x, y: y, size: 16, type: 'speed', color: '#00ffff' });
+            } else {
+                powerups.push({ x: x, y: y, size: 16, type: 'damage', color: '#ff88ff' });
+            }
         }
 
         function spawnEnemy() {
             const side = Math.random() * 4 | 0;
             let x, y;
-            if (side === 0) { x = Math.random() * WIDTH; y = -40; }
-            else if (side === 1) { x = Math.random() * WIDTH; y = HEIGHT + 40; }
-            else if (side === 2) { x = -40; y = Math.random() * HEIGHT; }
-            else { x = WIDTH + 40; y = Math.random() * HEIGHT; }
+            if (side === 0) { x = Math.random() * WORLD_WIDTH; y = -40; }
+            else if (side === 1) { x = Math.random() * WORLD_WIDTH; y = WORLD_HEIGHT + 40; }
+            else if (side === 2) { x = -40; y = Math.random() * WORLD_HEIGHT; }
+            else { x = WORLD_WIDTH + 40; y = Math.random() * WORLD_HEIGHT; }
 
             const type = Math.random() * 3 | 0;
             const enemy = {
@@ -317,19 +361,36 @@
             }
         }
 
-        function spawnPowerup(x, y) {
-            if (Math.random() < 0.4) {
-                powerups.push({ x: x, y: y, size: 14, type: 'health' });
+        // ダッシュ実行
+        function doDash() {
+            if (player.dashCooldown > 0) return;
+            player.dashTime = 12; // 約0.2秒間高速移動
+            player.dashCooldown = 90; // 1.5秒クールタイム
+            playSound('dash');
+            dashIndicator.style.opacity = '1';
+            setTimeout(() => { dashIndicator.style.opacity = '0'; }, 600);
+            
+            // ダッシュパーティクル
+            for (let i = 0; i < 25; i++) {
+                particles.push({
+                    x: player.x,
+                    y: player.y,
+                    vx: (Math.random() - 0.5) * 12,
+                    vy: (Math.random() - 0.5) * 12,
+                    life: 18,
+                    color: '#ffff88'
+                });
             }
         }
 
         function autoShoot() {
             if (!currentWeapon) return;
             const now = Date.now();
-            if (now - player.lastShot < currentWeapon.fireRate) return;
+            const effectiveFireRate = currentWeapon.fireRate * (player.tempFireRate || 1);
+            if (now - player.lastShot < effectiveFireRate) return;
             
-            const dx = mouseX - player.x;
-            const dy = mouseY - player.y;
+            const dx = mouseWorldX - player.x;
+            const dy = mouseWorldY - player.y;
             const dist = Math.hypot(dx, dy);
             if (dist < 40) return;
             
@@ -340,64 +401,87 @@
                 vx: (dx / dist) * 24,
                 vy: (dy / dist) * 24,
                 size: 7,
-                damage: currentWeapon.damage
+                damage: currentWeapon.damage * (player.tempDamage || 1)
             });
             playSound('shoot');
             shake = Math.max(shake, 2);
+        }
+
+        function updateCamera() {
+            cameraX = player.x - WIDTH / 2;
+            cameraY = player.y - HEIGHT / 2;
+            cameraX = Math.max(0, Math.min(WORLD_WIDTH - WIDTH, cameraX));
+            cameraY = Math.max(0, Math.min(WORLD_HEIGHT - HEIGHT, cameraY));
         }
 
         function gameLoop() {
             if (!gameRunning) return;
             frame++;
 
+            // 背景
             ctx.fillStyle = '#0a0a22';
             ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
+            // カメラ更新
+            updateCamera();
+
+            // 星（カメラ相対）
             ctx.fillStyle = '#ffffff';
             for (let star of stars) {
+                const sx = star.x - cameraX;
+                const sy = star.y - cameraY;
+                if (sx < -10 || sx > WIDTH + 10 || sy < -10 || sy > HEIGHT + 10) continue;
                 ctx.globalAlpha = 0.5 + Math.sin(frame / 8 + star.x) * 0.5;
-                ctx.fillRect(star.x, star.y, star.size, star.size);
+                ctx.fillRect(sx, sy, star.size, star.size);
             }
             ctx.globalAlpha = 1;
 
-            // 壁描画
+            // 壁（カメラ相対）
             ctx.fillStyle = '#555577';
             ctx.shadowBlur = 12;
             ctx.shadowColor = '#8899ff';
             for (let wall of walls) {
-                ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+                const wx = wall.x - cameraX;
+                const wy = wall.y - cameraY;
+                ctx.fillRect(wx, wy, wall.w, wall.h);
             }
             ctx.shadowBlur = 0;
 
-            // プレイヤー移動 + 画面外防止
+            // プレイヤー移動
             let dx = 0, dy = 0;
             if (keys['w'] || keys['ArrowUp']) dy -= player.speed;
             if (keys['s'] || keys['ArrowDown']) dy += player.speed;
             if (keys['a'] || keys['ArrowLeft']) dx -= player.speed;
             if (keys['d'] || keys['ArrowRight']) dx += player.speed;
-            moveWithWalls(player, dx, dy, player.size);
-            clampToScreen(player, player.size);   // ← ここで画面外に出られないように！
+
+            // ダッシュ中はさらに速く
+            const currentSpeed = player.dashTime > 0 ? player.speed * 3.2 : player.speed * (player.tempSpeed || 1);
+            moveWithWalls(player, dx * (player.dashTime > 0 ? 3.2 : 1), dy * (player.dashTime > 0 ? 3.2 : 1), player.size);
+            clampToWorld(player, player.size);
+
+            if (player.dashTime > 0) player.dashTime--;
+            if (player.dashCooldown > 0) player.dashCooldown--;
 
             // オート射撃
             autoShoot();
 
-            // プレイヤー描画
+            // プレイヤー描画（常に画面中央）
             ctx.save();
             ctx.shadowBlur = 25;
             ctx.shadowColor = '#00ddff';
             ctx.fillStyle = '#00aaff';
             ctx.beginPath();
-            ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+            ctx.arc(WIDTH / 2, HEIGHT / 2, player.size, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 5;
             ctx.beginPath();
-            ctx.moveTo(player.x, player.y);
+            ctx.moveTo(WIDTH / 2, HEIGHT / 2);
             ctx.lineTo(mouseX, mouseY);
             ctx.stroke();
             ctx.restore();
 
-            // 敵更新 + 画面外防止
+            // 敵更新
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const e = enemies[i];
                 const dx = player.x - e.x;
@@ -406,7 +490,7 @@
                 const moveX = (dx / dist) * e.speed;
                 const moveY = (dy / dist) * e.speed;
                 moveWithWalls(e, moveX, moveY, e.size);
-                clampToScreen(e, e.size);   // ← 敵も画面外に出られない！
+                clampToWorld(e, e.size);
 
                 if (e.type === 2) {
                     e.shootTimer++;
@@ -419,23 +503,28 @@
                     }
                 }
 
+                // カメラ相対で描画
+                const ex = e.x - cameraX;
+                const ey = e.y - cameraY;
+                if (ex < -50 || ex > WIDTH + 50 || ey < -50 || ey > HEIGHT + 50) continue;
+
                 ctx.save();
                 ctx.shadowBlur = 18;
                 ctx.shadowColor = e.color;
                 ctx.fillStyle = e.color;
                 ctx.beginPath();
-                ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2);
+                ctx.arc(ex, ey, e.size, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.fillStyle = '#111111';
-                ctx.beginPath(); ctx.arc(e.x - 7, e.y - 5, 4, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(e.x + 7, e.y - 5, 4, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(ex - 7, ey - 5, 4, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(ex + 7, ey - 5, 4, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
 
                 const barW = e.size * 1.8;
                 ctx.fillStyle = '#222222';
-                ctx.fillRect(e.x - barW / 2, e.y - e.size - 12, barW, 6);
+                ctx.fillRect(ex - barW / 2, ey - e.size - 12, barW, 6);
                 ctx.fillStyle = '#00ff88';
-                ctx.fillRect(e.x - barW / 2, e.y - e.size - 12, barW * (e.hp / e.maxHp), 6);
+                ctx.fillRect(ex - barW / 2, ey - e.size - 12, barW * (e.hp / e.maxHp), 6);
 
                 if (checkCollision(player, e)) {
                     player.health -= 20;
@@ -449,8 +538,7 @@
             // プレイヤー弾
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const b = bullets[i];
-                b.x += b.vx;
-                b.y += b.vy;
+                b.x += b.vx; b.y += b.vy;
 
                 if (bulletHitsWall(b.x, b.y, b.size)) {
                     createExplosion(b.x, b.y, 6, '#ffff88');
@@ -458,16 +546,18 @@
                     continue;
                 }
 
+                const bx = b.x - cameraX;
+                const by = b.y - cameraY;
+                if (bx < -20 || bx > WIDTH + 20 || by < -20 || by > HEIGHT + 20) {
+                    bullets.splice(i, 1); continue;
+                }
+
                 ctx.shadowBlur = 15;
                 ctx.shadowColor = '#22ff88';
                 ctx.fillStyle = '#22ff88';
                 ctx.beginPath();
-                ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+                ctx.arc(bx, by, b.size, 0, Math.PI * 2);
                 ctx.fill();
-
-                if (b.x < 0 || b.x > WIDTH || b.y < 0 || b.y > HEIGHT) {
-                    bullets.splice(i, 1); continue;
-                }
 
                 for (let j = enemies.length - 1; j >= 0; j--) {
                     if (checkCollision(b, enemies[j])) {
@@ -499,16 +589,18 @@
                     continue;
                 }
 
+                const bx = b.x - cameraX;
+                const by = b.y - cameraY;
+                if (bx < -20 || bx > WIDTH + 20 || by < -20 || by > HEIGHT + 20) {
+                    enemyBullets.splice(i, 1); continue;
+                }
+
                 ctx.shadowBlur = 12;
                 ctx.shadowColor = '#ff4444';
                 ctx.fillStyle = '#ff6666';
                 ctx.beginPath();
-                ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+                ctx.arc(bx, by, b.size, 0, Math.PI * 2);
                 ctx.fill();
-
-                if (b.x < 0 || b.x > WIDTH || b.y < 0 || b.y > HEIGHT) {
-                    enemyBullets.splice(i, 1); continue;
-                }
 
                 if (checkCollision(player, b)) {
                     player.health -= 16;
@@ -525,29 +617,47 @@
                 p.x += p.vx; p.y += p.vy;
                 p.vx *= 0.96; p.vy *= 0.96;
                 p.life--;
+                const px = p.x - cameraX;
+                const py = p.y - cameraY;
+                if (px < -10 || px > WIDTH + 10 || py < -10 || py > HEIGHT + 10) { particles.splice(i, 1); continue; }
                 ctx.globalAlpha = p.life / 30;
                 ctx.fillStyle = p.color;
-                ctx.fillRect(p.x, p.y, 5, 5);
+                ctx.fillRect(px, py, 5, 5);
                 if (p.life <= 0) particles.splice(i, 1);
             }
             ctx.globalAlpha = 1;
 
-            // 回復アイテム
+            // パワーアップ（新強化ドロップ）
             for (let i = powerups.length - 1; i >= 0; i--) {
                 const p = powerups[i];
-                ctx.shadowBlur = 20;
-                ctx.shadowColor = '#00ff88';
-                ctx.fillStyle = '#00ff88';
+                const px = p.x - cameraX;
+                const py = p.y - cameraY;
+                if (px < -30 || px > WIDTH + 30 || py < -30 || py > HEIGHT + 30) continue;
+
+                ctx.shadowBlur = 25;
+                ctx.shadowColor = p.color;
+                ctx.fillStyle = p.color;
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.arc(px, py, p.size, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 18px Arial';
-                ctx.fillText('+', p.x - 6, p.y + 6);
+                ctx.font = 'bold 20px Arial';
+                ctx.fillText(p.type === 'health' ? '+' : p.type === 'fireRate' ? '⚡' : p.type === 'speed' ? '🏃' : '💥', px - 8, py + 7);
                 ctx.shadowBlur = 0;
 
-                if (Math.hypot(player.x - p.x, player.y - p.y) < player.size + p.size) {
-                    player.health = Math.min(100, player.health + 35);
+                if (Math.hypot(player.x - p.x, player.y - p.y) < player.size + p.size + 10) {
+                    if (p.type === 'health') {
+                        player.health = Math.min(100, player.health + 40);
+                    } else if (p.type === 'fireRate') {
+                        player.tempFireRate = 0.55; // 連射1.8倍
+                        setTimeout(() => { player.tempFireRate = 0; }, 8000);
+                    } else if (p.type === 'speed') {
+                        player.tempSpeed = 1.6;
+                        setTimeout(() => { player.tempSpeed = 0; }, 7000);
+                    } else if (p.type === 'damage') {
+                        player.tempDamage = 1.8;
+                        setTimeout(() => { player.tempDamage = 0; }, 6500);
+                    }
                     playSound('pickup');
                     powerups.splice(i, 1);
                 }
@@ -574,6 +684,7 @@
                 ctx.translate(offsetX, offsetY);
             }
 
+            // UI更新
             scoreEl.textContent = player.score;
             waveEl.textContent = wave;
             healthEl.textContent = Math.max(0, Math.floor(player.health));
@@ -593,7 +704,6 @@
             gameOverEl.style.display = 'block';
         }
 
-        // 武器選択
         window.selectWeapon = function(index) {
             currentWeapon = weapons[index];
             weaponNameEl.textContent = `武器: ${currentWeapon.name}`;
@@ -605,13 +715,18 @@
         };
 
         // 入力
-        window.addEventListener('keydown', e => keys[e.key] = true);
+        window.addEventListener('keydown', e => {
+            keys[e.key] = true;
+            if (e.key === ' ' && gameRunning) doDash();
+        });
         window.addEventListener('keyup', e => keys[e.key] = false);
 
         canvas.addEventListener('mousemove', e => {
             const rect = canvas.getBoundingClientRect();
             mouseX = e.clientX - rect.left;
             mouseY = e.clientY - rect.top;
+            mouseWorldX = mouseX + cameraX;
+            mouseWorldY = mouseY + cameraY;
         });
     </script>
 </body>
