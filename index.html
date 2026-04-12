@@ -7,8 +7,8 @@
     <style>
         body { margin:0; padding:0; background:#111; display:flex; justify-content:center; align-items:center; height:100vh; font-family:'Arial',sans-serif; overflow:hidden; }
         canvas { border:4px solid #00aaff; box-shadow:0 0 40px #00aaff; image-rendering:pixelated; }
-        #start-screen, #skill-screen { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(10,10,30,0.95); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:100; color:white; }
-        #start-screen h1, #skill-screen h1 { font-size:48px; margin-bottom:30px; text-shadow:0 0 20px #00aaff; }
+        #start-screen { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(10,10,30,0.95); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:100; color:white; }
+        #start-screen h1 { font-size:48px; margin-bottom:30px; text-shadow:0 0 20px #00aaff; }
         .weapon-grid { display:flex; gap:30px; }
         .weapon-btn { background:#222244; border:4px solid #00aaff; width:220px; padding:20px 15px; text-align:center; border-radius:15px; cursor:pointer; transition:all 0.2s; box-shadow:0 0 20px #00aaff; }
         .weapon-btn:hover { transform:scale(1.1); background:#334466; }
@@ -19,37 +19,19 @@
         #wave-info { position:absolute; top:80px; left:50%; transform:translateX(-50%); color:#ffdd00; font-size:32px; font-weight:bold; text-shadow:0 0 15px #ff8800; opacity:0; pointer-events:none; z-index:10; }
         #dash-indicator { position:absolute; bottom:30px; left:50%; transform:translateX(-50%); background:rgba(255,255,100,0.9); color:#111; padding:6px 20px; border-radius:30px; font-size:18px; font-weight:bold; opacity:0; transition:opacity 0.3s; z-index:10; }
         #minimap { position:absolute; bottom:20px; right:20px; border:3px solid #00aaff; background:rgba(10,10,30,0.85); z-index:20; }
-        #skill-screen { display:none; }
-        .tab { padding:10px 30px; margin:0 10px; background:#334466; cursor:pointer; border-radius:10px; }
-        .tab.active { background:#00aaff; }
-        .skill-list { display:flex; flex-direction:column; gap:15px; max-height:420px; overflow-y:auto; padding:20px; }
-        .locked { opacity:0.4; border-color:#666; }
     </style>
 </head>
 <body>
     <canvas id="game" width="900" height="650"></canvas>
 
     <div id="start-screen">
-        <h1>ロードアウト搭載版</h1>
+        <h1>完全修正版</h1>
         <div class="weapon-grid">
             <div class="weapon-btn" onclick="selectWeapon(0)"><h3>🔥 SMG</h3><p>超連射</p></div>
             <div class="weapon-btn" onclick="selectWeapon(1)"><h3>🛡️ アサルト</h3><p>バランス</p></div>
             <div class="weapon-btn" onclick="selectWeapon(2)"><h3>🎯 スナイパー</h3><p>高威力</p></div>
         </div>
-        <p style="margin-top:40px; font-size:22px; color:#aaffaa;">スペースでダッシュ<br>Kキーでスキルツリー</p>
-        <button onclick="showSkillScreen()" style="margin-top:30px; padding:12px 30px; font-size:22px; background:#00aaff; border:none; border-radius:10px; cursor:pointer;">スキルツリーを開く (K)</button>
-    </div>
-
-    <div id="skill-screen">
-        <h1>スキルツリー</h1>
-        <div style="display:flex; gap:20px; margin-bottom:20px;">
-            <div class="tab active" onclick="switchTab(0)" id="tab0">生存</div>
-            <div class="tab" onclick="switchTab(1)" id="tab1">火力</div>
-            <div class="tab" onclick="switchTab(2)" id="tab2">制圧</div>
-        </div>
-        <div id="skill-list" class="skill-list"></div>
-        <div style="margin-top:20px;">累計スコア: <span id="total-score-display" style="color:#ffff00;">0</span>　スキルポイント: <span id="skill-points-display" style="color:#00ff88;">0</span></div>
-        <button onclick="hideSkillScreen()" style="margin-top:20px; padding:10px 30px; font-size:20px;">閉じる (ESC)</button>
+        <p style="margin-top:40px; font-size:22px; color:#aaffaa;">WASDで移動　スペースでダッシュ　クリックで射撃</p>
     </div>
 
     <div id="ui">
@@ -77,10 +59,10 @@
         const WIDTH = 900, HEIGHT = 650;
         const WORLD_WIDTH = 2200, WORLD_HEIGHT = 1600;
 
-        let player = { x: WORLD_WIDTH/2, y: WORLD_HEIGHT/2, size:20, speed:6.5, health:100, maxHealth:100, score:0, lastShot:0,
-                       dashCooldown:90, dashTime:0, tempFireRate:1, tempSpeed:1, tempDamage:1, regen:0, damageReduce:1 };
+        let player = { x: WORLD_WIDTH/2, y: WORLD_HEIGHT/2, size:20, speed:6.5, health:100, score:0, lastShot:0,
+                       dashCooldown:90, dashTime:0 };
 
-        let bullets = [], enemyBullets = [], enemies = [], particles = [], powerups = [];
+        let bullets = [], enemyBullets = [], enemies = [], particles = [];
         let walls = [
             {x:180,y:180,w:320,h:35},{x:1400,y:180,w:35,h:320},
             {x:180,y:1150,w:320,h:35},{x:1550,y:980,w:35,h:280},
@@ -108,8 +90,6 @@
             osc.connect(gain).connect(audioCtx.destination);
             if (type === 'shoot') { osc.frequency.setValueAtTime(880, audioCtx.currentTime); osc.type = 'sine'; gain.gain.value = 0.3; gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.07); }
             else if (type === 'hit') { osc.frequency.setValueAtTime(180, audioCtx.currentTime); osc.type = 'square'; gain.gain.value = 0.6; gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.12); }
-            else if (type === 'explode') { osc.frequency.setValueAtTime(90, audioCtx.currentTime); osc.type = 'sawtooth'; gain.gain.value = 0.7; gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.35); }
-            else if (type === 'pickup') { osc.frequency.setValueAtTime(1200, audioCtx.currentTime); osc.type = 'sine'; gain.gain.value = 0.3; gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.25); }
             else if (type === 'dash') { osc.frequency.setValueAtTime(600, audioCtx.currentTime); osc.type = 'sawtooth'; gain.gain.value = 0.4; gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15); }
             osc.start();
             osc.stop(audioCtx.currentTime + 0.5);
@@ -118,137 +98,50 @@
         let stars = [];
         for (let i = 0; i < 280; i++) stars.push({ x: Math.random() * WORLD_WIDTH, y: Math.random() * WORLD_HEIGHT, size: Math.random() * 3.5 + 1 });
 
-        // ロードアウト
-        let totalScore = localStorage.getItem('totalScore') ? parseInt(localStorage.getItem('totalScore')) : 0;
-        let skillPoints = localStorage.getItem('skillPoints') ? parseInt(localStorage.getItem('skillPoints')) : 0;
-        let unlockedSkills = localStorage.getItem('unlockedSkills') ? JSON.parse(localStorage.getItem('unlockedSkills')) : [];
+        function checkCollision(a, b) { return Math.hypot(a.x - b.x, a.y - b.y) < a.size + b.size; }
 
-        const allSkills = [
-            {id:'sur1', cat:'生存', name:'耐久強化Ⅰ', desc:'最大HP +40', cost:15, prereq:null, effect:()=>{player.maxHealth+=40; player.health=player.maxHealth;}},
-            {id:'sur2', cat:'生存', name:'ダッシュマスター', desc:'ダッシュクールダウン短縮', cost:25, prereq:'sur1', effect:()=>{player.dashCooldown = 60;}},
-            {id:'fire1', cat:'火力', name:'火力強化Ⅰ', desc:'ダメージ +25%', cost:15, prereq:null, effect:()=>{player.tempDamage = 1.25;}},
-            {id:'fire2', cat:'火力', name:'連射速度UP', desc:'射撃間隔 -25%', cost:25, prereq:'fire1', effect:()=>{player.tempFireRate = 0.75;}},
-            {id:'sup1', cat:'制圧', name:'SMG強化', desc:'SMG連射 +30%', cost:20, prereq:null, effect:()=>{if(currentWeapon&&currentWeapon.name==="SMG") player.tempFireRate*=0.7;}}
-        ];
-
-        function applySkills() {
-            player.maxHealth = 100; player.tempFireRate = 1; player.tempSpeed = 1; player.tempDamage = 1;
-            player.dashCooldown = 90; player.regen = 0; player.damageReduce = 1;
-            unlockedSkills.forEach(id => {
-                const sk = allSkills.find(s => s.id === id);
-                if (sk && sk.effect) sk.effect();
-            });
-            player.health = Math.min(player.health, player.maxHealth);
+        function moveWithWalls(entity, dx, dy, radius) {
+            entity.x += dx;
+            for (let wall of walls) {
+                const testX = Math.max(wall.x, Math.min(entity.x, wall.x + wall.w));
+                const testY = Math.max(wall.y, Math.min(entity.y, wall.y + wall.h));
+                if ((entity.x - testX)**2 + (entity.y - testY)**2 < radius * radius) {
+                    entity.x -= dx; break;
+                }
+            }
+            entity.y += dy;
+            for (let wall of walls) {
+                const testX = Math.max(wall.x, Math.min(entity.x, wall.x + wall.w));
+                const testY = Math.max(wall.y, Math.min(entity.y, wall.y + wall.h));
+                if ((entity.x - testX)**2 + (entity.y - testY)**2 < radius * radius) {
+                    entity.y -= dy; break;
+                }
+            }
         }
 
-        function saveProgress() {
-            localStorage.setItem('totalScore', totalScore);
-            localStorage.setItem('skillPoints', skillPoints);
-            localStorage.setItem('unlockedSkills', JSON.stringify(unlockedSkills));
-        }
-
-        function showSkillScreen() {
-            document.getElementById('skill-screen').style.display = 'flex';
-            renderSkillTree(0);
-        }
-        function hideSkillScreen() {
-            document.getElementById('skill-screen').style.display = 'none';
-        }
-        function switchTab(n) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.getElementById('tab'+n).classList.add('active');
-            renderSkillTree(n);
-        }
-        function renderSkillTree(tab) {
-            const container = document.getElementById('skill-list');
-            container.innerHTML = '';
-            const cats = ['生存','火力','制圧'];
-            const filtered = allSkills.filter(s => s.cat === cats[tab]);
-            filtered.forEach(sk => {
-                const unlocked = unlockedSkills.includes(sk.id);
-                const canBuy = !unlocked && skillPoints >= sk.cost && (!sk.prereq || unlockedSkills.includes(sk.prereq));
-                const div = document.createElement('div');
-                div.className = `skill-item ${unlocked ? '' : canBuy ? '' : 'locked'}`;
-                div.innerHTML = `<h3>${sk.name} ${unlocked?'✔':''}</h3><p>${sk.desc}</p><p style="color:#ffff00;">コスト: ${sk.cost} SP</p>`;
-                if (canBuy) div.onclick = () => {
-                    skillPoints -= sk.cost;
-                    unlockedSkills.push(sk.id);
-                    applySkills();
-                    saveProgress();
-                    renderSkillTree(tab);
-                    document.getElementById('skill-points-display').textContent = skillPoints;
-                };
-                container.appendChild(div);
-            });
-            document.getElementById('total-score-display').textContent = totalScore;
-            document.getElementById('skill-points-display').textContent = skillPoints;
-        }
-
-        function spawnSquad() {
-            const side = Math.random()*4|0;
-            let baseX = side===0||side===1 ? Math.random()*WORLD_WIDTH : (side===2?50:WORLD_WIDTH-50);
-            let baseY = side===2||side===3 ? Math.random()*WORLD_HEIGHT : (side===0?50:WORLD_HEIGHT-50);
-            const roles = ['shield','assault','assault','medic','medic'];
-            roles.forEach((role,i) => {
-                const e = {
-                    x: baseX + (i-2)*35,
-                    y: baseY + (Math.random()-0.5)*40,
-                    size: role==='shield'?26:role==='assault'?20:18,
-                    speed: role==='shield'?1.8:3.2,
-                    hp: role==='shield'?8:role==='assault'?4:3,
-                    maxHp: role==='shield'?8:role==='assault'?4:3,
-                    type: role==='assault'?2:0,
-                    role: role,
-                    shootTimer: 0,
-                    color: role==='shield'?'#aaaaaa':role==='assault'?'#ff8800':'#00ffcc'
-                };
-                enemies.push(e);
-            });
+        function clampToWorld(entity, radius) {
+            entity.x = Math.max(radius, Math.min(WORLD_WIDTH - radius, entity.x));
+            entity.y = Math.max(radius, Math.min(WORLD_HEIGHT - radius, entity.y));
         }
 
         function spawnEnemy() {
-            if (wave >= 5 && Math.random() < 0.6) {
-                spawnSquad();
-                spawnSquad();
-                return;
-            }
             const side = Math.random() * 4 | 0;
             let x = side === 0 || side === 1 ? Math.random() * WORLD_WIDTH : (side === 2 ? -40 : WORLD_WIDTH + 40);
             let y = side === 2 || side === 3 ? Math.random() * WORLD_HEIGHT : (side === 0 ? -40 : WORLD_HEIGHT + 40);
-            const type = Math.random() * 3 | 0;
-            enemies.push({x, y, size:type===1?14:type===2?22:18, speed:type===1?5.5:type===2?2.8:3.7, hp:type===2?3:type===1?1:2, maxHp:type===2?3:type===1?1:2, type, shootTimer:0, color:type===0?'#ff4444':type===1?'#ff88ff':'#ffaa44'});
-        }
-
-        function createExplosion(x, y, count, color) {
-            for (let i = 0; i < count; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const vel = Math.random() * 7 + 2;
-                particles.push({x, y, vx: Math.cos(angle)*vel, vy: Math.sin(angle)*vel, life: 28 + Math.random()*12, color});
-            }
-        }
-
-        function doDash() {
-            if (player.dashCooldown > 0) return;
-            player.dashTime = 12;
-            player.dashCooldown = 90;
-            playSound('dash');
-            document.getElementById('dash-indicator').style.opacity = '1';
-            setTimeout(() => document.getElementById('dash-indicator').style.opacity = '0', 600);
+            enemies.push({x, y, size:18, speed:3.7, hp:2, color:'#ff4444'});
         }
 
         function autoShoot() {
             if (!currentWeapon) return;
             const now = Date.now();
-            const effectiveRate = currentWeapon.fireRate * player.tempFireRate;
-            if (now - player.lastShot < effectiveRate) return;
+            if (now - player.lastShot < currentWeapon.fireRate) return;
             const dx = mouseWorldX - player.x;
             const dy = mouseWorldY - player.y;
             const dist = Math.hypot(dx, dy);
             if (dist < 40) return;
             player.lastShot = now;
-            bullets.push({x:player.x, y:player.y, vx:(dx/dist)*24, vy:(dy/dist)*24, size:7, damage:currentWeapon.damage * player.tempDamage});
+            bullets.push({x:player.x, y:player.y, vx:(dx/dist)*24, vy:(dy/dist)*24, size:7});
             playSound('shoot');
-            shake = Math.max(shake, 2);
         }
 
         function updateCamera() {
@@ -306,16 +199,15 @@
             if (keys['s'] || keys['ArrowDown']) dy += player.speed;
             if (keys['a'] || keys['ArrowLeft']) dx -= player.speed;
             if (keys['d'] || keys['ArrowRight']) dx += player.speed;
-            const dashMult = player.dashTime > 0 ? 3.2 : player.tempSpeed;
-            // 移動
-            player.x += dx * dashMult;
-            player.y += dy * dashMult;
-            player.x = Math.max(player.size, Math.min(WORLD_WIDTH - player.size, player.x));
-            player.y = Math.max(player.size, Math.min(WORLD_HEIGHT - player.size, player.y));
+
+            const dashMult = player.dashTime > 0 ? 3.2 : 1;
+            moveWithWalls(player, dx * dashMult, dy * dashMult, player.size);
+            clampToWorld(player, player.size);
 
             if (player.dashTime > 0) player.dashTime--;
             if (player.dashCooldown > 0) player.dashCooldown--;
 
+            // オート射撃
             autoShoot();
 
             // プレイヤー描画
@@ -336,38 +228,32 @@
             ctx.stroke();
             ctx.restore();
 
-            // ここから敵・弾・パーティクル・パワーアップの完全描画
             // 敵
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const e = enemies[i];
                 const dx2 = player.x - e.x;
                 const dy2 = player.y - e.y;
                 const dist = Math.hypot(dx2, dy2) || 1;
-                const speed = e.role === 'shield' ? 1.8 : e.speed || 3.7;
-                e.x += (dx2 / dist) * speed;
-                e.y += (dy2 / dist) * speed;
+                e.x += (dx2 / dist) * e.speed;
+                e.y += (dy2 / dist) * e.speed;
 
                 const ex = e.x - cameraX;
                 const ey = e.y - cameraY;
-                if (ex < -50 || ex > WIDTH + 50 || ey < -50 || ey > HEIGHT + 50) continue;
-
                 ctx.save();
                 ctx.shadowBlur = 18;
-                ctx.shadowColor = e.color || '#ff4444';
-                ctx.fillStyle = e.color || '#ff4444';
+                ctx.shadowColor = e.color;
+                ctx.fillStyle = e.color;
                 ctx.beginPath();
-                ctx.arc(ex, ey, e.size || 18, 0, Math.PI * 2);
+                ctx.arc(ex, ey, e.size, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.fillStyle = '#111';
-                ctx.beginPath(); ctx.arc(ex - 7, ey - 5, 4, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(ex + 7, ey - 5, 4, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
             }
 
             // 弾
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const b = bullets[i];
-                b.x += b.vx; b.y += b.vy;
+                b.x += b.vx;
+                b.y += b.vy;
                 const bx = b.x - cameraX;
                 const by = b.y - cameraY;
                 ctx.shadowBlur = 15;
@@ -378,28 +264,15 @@
                 ctx.fill();
             }
 
-            // パーティクル
-            for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i];
-                p.x += p.vx; p.y += p.vy;
-                p.vx *= 0.96; p.vy *= 0.96;
-                p.life--;
-                const px = p.x - cameraX;
-                const py = p.y - cameraY;
-                ctx.globalAlpha = p.life / 30;
-                ctx.fillStyle = p.color;
-                ctx.fillRect(px, py, 5, 5);
-                if (p.life <= 0) particles.splice(i, 1);
-            }
-            ctx.globalAlpha = 1;
-
             // 次のウェーブ
             if (enemies.length === 0) {
                 wave++;
-                waveInfoEl.textContent = `ウェーブ ${wave} 開始！`;
-                waveInfoEl.style.opacity = '1';
-                setTimeout(() => waveInfoEl.style.opacity = '0', 1600);
-                for (let i = 0; i < 8 + wave * 3; i++) setTimeout(() => { if (gameRunning) spawnEnemy(); }, i * 60);
+                document.getElementById('wave-info').textContent = `ウェーブ ${wave} 開始！`;
+                document.getElementById('wave-info').style.opacity = '1';
+                setTimeout(() => document.getElementById('wave-info').style.opacity = '0', 1600);
+                for (let i = 0; i < 8 + wave * 3; i++) {
+                    setTimeout(() => { if (gameRunning) spawnEnemy(); }, i * 60);
+                }
             }
 
             scoreEl.textContent = player.score;
@@ -410,28 +283,31 @@
             requestAnimationFrame(gameLoop);
         }
 
-        function endGame() {
-            gameRunning = false;
-            document.getElementById('game-over').style.display = 'block';
-        }
-
         function selectWeapon(index) {
             currentWeapon = weapons[index];
             document.getElementById('weapon-name').textContent = `武器: ${currentWeapon.name}`;
             document.getElementById('start-screen').style.display = 'none';
             gameRunning = true;
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            applySkills();
             for (let i = 0; i < 6; i++) spawnEnemy();
             gameLoop();
         }
 
         window.addEventListener('keydown', e => {
             keys[e.key] = true;
-            if (e.key === ' ' && gameRunning) doDash();
-            if (e.key.toLowerCase() === 'k' && gameRunning) showSkillScreen();
+            if (e.key === ' ' && gameRunning) {
+                player.dashTime = 12;
+                player.dashCooldown = 90;
+                playSound('dash');
+                document.getElementById('dash-indicator').style.opacity = '1';
+                setTimeout(() => document.getElementById('dash-indicator').style.opacity = '0', 600);
+            }
         });
         window.addEventListener('keyup', e => keys[e.key] = false);
+
+        canvas.addEventListener('click', () => {
+            if (gameRunning && currentWeapon) autoShoot();
+        });
 
         canvas.addEventListener('mousemove', e => {
             const rect = canvas.getBoundingClientRect();
@@ -440,9 +316,6 @@
             mouseWorldX = mouseX + cameraX;
             mouseWorldY = mouseY + cameraY;
         });
-
-        // スタート
-        applySkills();
     </script>
 </body>
 </html>
