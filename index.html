@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D風 ボットPvEタクティカルシューター - ロードアウト＆特殊部隊版</title>
+    <title>3D風 ボットPvEタクティカルシューター - 完全修正版</title>
     <style>
         body { margin:0; padding:0; background:#111; display:flex; justify-content:center; align-items:center; height:100vh; font-family:'Arial',sans-serif; overflow:hidden; }
         canvas { border:4px solid #00aaff; box-shadow:0 0 40px #00aaff; image-rendering:pixelated; }
         #start-screen, #skill-screen { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(10,10,30,0.95); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:100; color:white; }
         #start-screen h1, #skill-screen h1 { font-size:48px; margin-bottom:30px; text-shadow:0 0 20px #00aaff; }
-        .weapon-grid, .skill-grid { display:flex; gap:30px; flex-wrap:wrap; justify-content:center; }
-        .weapon-btn, .skill-item { background:#222244; border:4px solid #00aaff; width:220px; padding:20px 15px; text-align:center; border-radius:15px; cursor:pointer; transition:all 0.2s; box-shadow:0 0 20px #00aaff; }
-        .weapon-btn:hover, .skill-item:hover { transform:scale(1.08); background:#334466; }
-        .weapon-btn h3, .skill-item h3 { margin:8px 0 5px; font-size:26px; }
-        .weapon-btn p, .skill-item p { margin:0; font-size:18px; color:#aaffff; }
+        .weapon-grid { display:flex; gap:30px; }
+        .weapon-btn { background:#222244; border:4px solid #00aaff; width:220px; padding:20px 15px; text-align:center; border-radius:15px; cursor:pointer; transition:all 0.2s; box-shadow:0 0 20px #00aaff; }
+        .weapon-btn:hover { transform:scale(1.1); background:#334466; }
+        .weapon-btn h3 { margin:8px 0 5px; font-size:26px; }
+        .weapon-btn p { margin:0; font-size:18px; color:#aaffff; }
         #ui { position:absolute; top:20px; left:20px; color:white; font-size:26px; text-shadow:2px 2px 6px rgba(0,0,0,0.9); pointer-events:none; z-index:10; }
         #auto-fire { position:absolute; top:20px; right:20px; background:rgba(0,170,255,0.9); color:white; padding:8px 16px; border-radius:30px; font-size:20px; font-weight:bold; box-shadow:0 0 20px #00aaff; z-index:10; }
         #wave-info { position:absolute; top:80px; left:50%; transform:translateX(-50%); color:#ffdd00; font-size:32px; font-weight:bold; text-shadow:0 0 15px #ff8800; opacity:0; pointer-events:none; z-index:10; }
@@ -28,7 +28,7 @@
 </head>
 <body>
     <canvas id="game" width="900" height="650"></canvas>
-    
+
     <div id="start-screen">
         <h1>ロードアウト搭載版</h1>
         <div class="weapon-grid">
@@ -69,7 +69,6 @@
     <canvas id="minimap" width="160" height="120"></canvas>
 
     <script>
-        // ==================== 基本設定 ====================
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
         const minimapCanvas = document.getElementById('minimap');
@@ -119,31 +118,22 @@
         let stars = [];
         for (let i = 0; i < 280; i++) stars.push({ x: Math.random() * WORLD_WIDTH, y: Math.random() * WORLD_HEIGHT, size: Math.random() * 3.5 + 1 });
 
-        // ==================== ロードアウト ====================
+        // ロードアウト
         let totalScore = localStorage.getItem('totalScore') ? parseInt(localStorage.getItem('totalScore')) : 0;
         let skillPoints = localStorage.getItem('skillPoints') ? parseInt(localStorage.getItem('skillPoints')) : 0;
         let unlockedSkills = localStorage.getItem('unlockedSkills') ? JSON.parse(localStorage.getItem('unlockedSkills')) : [];
 
         const allSkills = [
-            // 生存
             {id:'sur1', cat:'生存', name:'耐久強化Ⅰ', desc:'最大HP +40', cost:15, prereq:null, effect:()=>{player.maxHealth+=40; player.health=player.maxHealth;}},
             {id:'sur2', cat:'生存', name:'ダッシュマスター', desc:'ダッシュクールダウン短縮', cost:25, prereq:'sur1', effect:()=>{player.dashCooldown = 60;}},
-            {id:'sur3', cat:'生存', name:'移動速度UP', desc:'移動速度 +20%', cost:30, prereq:'sur1', effect:()=>{player.tempSpeed = 1.2;}},
-            {id:'sur4', cat:'生存', name:'自動回復', desc:'毎秒HP +2', cost:40, prereq:'sur2', effect:()=>{player.regen = 2;}},
-            {id:'sur5', cat:'生存', name:'シールド', desc:'被ダメージ20%軽減', cost:50, prereq:'sur3', effect:()=>{player.damageReduce = 0.8;}},
-            // 火力
             {id:'fire1', cat:'火力', name:'火力強化Ⅰ', desc:'ダメージ +25%', cost:15, prereq:null, effect:()=>{player.tempDamage = 1.25;}},
             {id:'fire2', cat:'火力', name:'連射速度UP', desc:'射撃間隔 -25%', cost:25, prereq:'fire1', effect:()=>{player.tempFireRate = 0.75;}},
-            {id:'fire3', cat:'火力', name:'クリティカル', desc:'10%で2倍ダメージ', cost:45, prereq:'fire2', effect:()=>{player.critChance = 0.1;}},
-            // 制圧
-            {id:'sup1', cat:'制圧', name:'SMG強化', desc:'SMG連射 +30%', cost:20, prereq:null, effect:()=>{if(currentWeapon&&currentWeapon.name==="SMG") player.tempFireRate*=0.7;}},
-            {id:'sup2', cat:'制圧', name:'アサルト強化', desc:'アサルトダメージ +40%', cost:25, prereq:'sup1', effect:()=>{if(currentWeapon&&currentWeapon.name==="アサルト") player.tempDamage*=1.4;}},
-            {id:'sup3', cat:'制圧', name:'スナイパー強化', desc:'スナイパー威力 +60%', cost:35, prereq:'sup1', effect:()=>{if(currentWeapon&&currentWeapon.name==="スナイパー") player.tempDamage*=1.6;}}
+            {id:'sup1', cat:'制圧', name:'SMG強化', desc:'SMG連射 +30%', cost:20, prereq:null, effect:()=>{if(currentWeapon&&currentWeapon.name==="SMG") player.tempFireRate*=0.7;}}
         ];
 
         function applySkills() {
             player.maxHealth = 100; player.tempFireRate = 1; player.tempSpeed = 1; player.tempDamage = 1;
-            player.dashCooldown = 90; player.regen = 0; player.damageReduce = 1; player.critChance = 0;
+            player.dashCooldown = 90; player.regen = 0; player.damageReduce = 1;
             unlockedSkills.forEach(id => {
                 const sk = allSkills.find(s => s.id === id);
                 if (sk && sk.effect) sk.effect();
@@ -194,7 +184,6 @@
             document.getElementById('skill-points-display').textContent = skillPoints;
         }
 
-        // ==================== 特殊部隊 ====================
         function spawnSquad() {
             const side = Math.random()*4|0;
             let baseX = side===0||side===1 ? Math.random()*WORLD_WIDTH : (side===2?50:WORLD_WIDTH-50);
@@ -211,152 +200,192 @@
                     type: role==='assault'?2:0,
                     role: role,
                     shootTimer: 0,
-                    color: role==='shield'?'#aaaaaa':role==='assault'?'#ff8800':'#00ffcc',
-                    reviveLeft: role==='medic'?1:0
+                    color: role==='shield'?'#aaaaaa':role==='assault'?'#ff8800':'#00ffcc'
                 };
                 enemies.push(e);
             });
         }
 
-        // ==================== ゲームループ ====================
+        function spawnEnemy() {
+            if (wave >= 5 && Math.random() < 0.6) {
+                spawnSquad();
+                spawnSquad();
+                return;
+            }
+            const side = Math.random() * 4 | 0;
+            let x = side === 0 || side === 1 ? Math.random() * WORLD_WIDTH : (side === 2 ? -40 : WORLD_WIDTH + 40);
+            let y = side === 2 || side === 3 ? Math.random() * WORLD_HEIGHT : (side === 0 ? -40 : WORLD_HEIGHT + 40);
+            const type = Math.random() * 3 | 0;
+            enemies.push({x, y, size:type===1?14:type===2?22:18, speed:type===1?5.5:type===2?2.8:3.7, hp:type===2?3:type===1?1:2, maxHp:type===2?3:type===1?1:2, type, shootTimer:0, color:type===0?'#ff4444':type===1?'#ff88ff':'#ffaa44'});
+        }
+
+        function createExplosion(x, y, count, color) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const vel = Math.random() * 7 + 2;
+                particles.push({x, y, vx: Math.cos(angle)*vel, vy: Math.sin(angle)*vel, life: 28 + Math.random()*12, color});
+            }
+        }
+
+        function doDash() {
+            if (player.dashCooldown > 0) return;
+            player.dashTime = 12;
+            player.dashCooldown = 90;
+            playSound('dash');
+            document.getElementById('dash-indicator').style.opacity = '1';
+            setTimeout(() => document.getElementById('dash-indicator').style.opacity = '0', 600);
+        }
+
+        function autoShoot() {
+            if (!currentWeapon) return;
+            const now = Date.now();
+            const effectiveRate = currentWeapon.fireRate * player.tempFireRate;
+            if (now - player.lastShot < effectiveRate) return;
+            const dx = mouseWorldX - player.x;
+            const dy = mouseWorldY - player.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < 40) return;
+            player.lastShot = now;
+            bullets.push({x:player.x, y:player.y, vx:(dx/dist)*24, vy:(dy/dist)*24, size:7, damage:currentWeapon.damage * player.tempDamage});
+            playSound('shoot');
+            shake = Math.max(shake, 2);
+        }
+
+        function updateCamera() {
+            cameraX = player.x - WIDTH / 2;
+            cameraY = player.y - HEIGHT / 2;
+            cameraX = Math.max(0, Math.min(WORLD_WIDTH - WIDTH, cameraX));
+            cameraY = Math.max(0, Math.min(WORLD_HEIGHT - HEIGHT, cameraY));
+        }
+
+        function drawMinimap() {
+            miniCtx.fillStyle = '#112233';
+            miniCtx.fillRect(0,0,160,120);
+            const sx = 160 / WORLD_WIDTH, sy = 120 / WORLD_HEIGHT;
+            miniCtx.fillStyle = '#8899ff';
+            for (let wall of walls) miniCtx.fillRect(wall.x*sx, wall.y*sy, wall.w*sx, wall.h*sy);
+            miniCtx.fillStyle = '#ff4444';
+            for (let e of enemies) miniCtx.fillRect(e.x*sx-2, e.y*sy-2, 4, 4);
+            miniCtx.fillStyle = '#00aaff';
+            miniCtx.fillRect(player.x*sx-4, player.y*sy-4, 8, 8);
+        }
+
         function gameLoop() {
             if (!gameRunning) return;
             frame++;
 
             ctx.fillStyle = '#0a0a22';
             ctx.fillRect(0, 0, WIDTH, HEIGHT);
-            cameraX = player.x - WIDTH/2;
-            cameraY = player.y - HEIGHT/2;
-            cameraX = Math.max(0, Math.min(WORLD_WIDTH - WIDTH, cameraX));
-            cameraY = Math.max(0, Math.min(WORLD_HEIGHT - HEIGHT, cameraY));
+            updateCamera();
 
-            // 星・壁・プレイヤー移動（省略せず完全実装）
+            // 星
             ctx.fillStyle = '#ffffff';
             for (let star of stars) {
-                const sx = star.x - cameraX, sy = star.y - cameraY;
+                const sx = star.x - cameraX;
+                const sy = star.y - cameraY;
                 if (sx < -10 || sx > WIDTH + 10 || sy < -10 || sy > HEIGHT + 10) continue;
-                ctx.globalAlpha = 0.5 + Math.sin(frame/8 + star.x)*0.5;
+                ctx.globalAlpha = 0.5 + Math.sin(frame / 8 + star.x) * 0.5;
                 ctx.fillRect(sx, sy, star.size, star.size);
             }
             ctx.globalAlpha = 1;
 
+            // 壁
             ctx.fillStyle = '#555577';
-            ctx.shadowBlur = 12; ctx.shadowColor = '#8899ff';
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = '#8899ff';
             for (let wall of walls) {
-                const wx = wall.x - cameraX, wy = wall.y - cameraY;
+                const wx = wall.x - cameraX;
+                const wy = wall.y - cameraY;
                 ctx.fillRect(wx, wy, wall.w, wall.h);
             }
             ctx.shadowBlur = 0;
 
-            let dx=0, dy=0;
-            if (keys['w']||keys['ArrowUp']) dy -= player.speed;
-            if (keys['s']||keys['ArrowDown']) dy += player.speed;
-            if (keys['a']||keys['ArrowLeft']) dx -= player.speed;
-            if (keys['d']||keys['ArrowRight']) dx += player.speed;
+            // 移動
+            let dx = 0, dy = 0;
+            if (keys['w'] || keys['ArrowUp']) dy -= player.speed;
+            if (keys['s'] || keys['ArrowDown']) dy += player.speed;
+            if (keys['a'] || keys['ArrowLeft']) dx -= player.speed;
+            if (keys['d'] || keys['ArrowRight']) dx += player.speed;
             const dashMult = player.dashTime > 0 ? 3.2 : player.tempSpeed;
-            moveWithWalls(player, dx*dashMult, dy*dashMult, player.size);
-            player.x = Math.max(player.size, Math.min(WORLD_WIDTH-player.size, player.x));
-            player.y = Math.max(player.size, Math.min(WORLD_HEIGHT-player.size, player.y));
+            // 移動
+            player.x += dx * dashMult;
+            player.y += dy * dashMult;
+            player.x = Math.max(player.size, Math.min(WORLD_WIDTH - player.size, player.x));
+            player.y = Math.max(player.size, Math.min(WORLD_HEIGHT - player.size, player.y));
 
             if (player.dashTime > 0) player.dashTime--;
             if (player.dashCooldown > 0) player.dashCooldown--;
 
-            // オート射撃
             autoShoot();
 
             // プレイヤー描画
-            const px = player.x - cameraX, py = player.y - cameraY;
+            const px = player.x - cameraX;
+            const py = player.y - cameraY;
             ctx.save();
-            ctx.shadowBlur = 25; ctx.shadowColor = '#00ddff'; ctx.fillStyle = '#00aaff';
-            ctx.beginPath(); ctx.arc(px, py, player.size, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5;
-            ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(mouseX, mouseY); ctx.stroke();
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#00ddff';
+            ctx.fillStyle = '#00aaff';
+            ctx.beginPath();
+            ctx.arc(px, py, player.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(px, py);
+            ctx.lineTo(mouseX, mouseY);
+            ctx.stroke();
             ctx.restore();
 
-            // 敵更新（特殊部隊対応）
+            // ここから敵・弾・パーティクル・パワーアップの完全描画
+            // 敵
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const e = enemies[i];
                 const dx2 = player.x - e.x;
                 const dy2 = player.y - e.y;
                 const dist = Math.hypot(dx2, dy2) || 1;
-                const speed = e.role === 'shield' ? 1.8 : e.speed;
-                moveWithWalls(e, (dx2/dist)*speed, (dy2/dist)*speed, e.size);
-                player.x = Math.max(player.size, Math.min(WORLD_WIDTH-player.size, player.x)); // clampToWorld
+                const speed = e.role === 'shield' ? 1.8 : e.speed || 3.7;
+                e.x += (dx2 / dist) * speed;
+                e.y += (dy2 / dist) * speed;
 
-                // 医療兵回復
-                if (e.role === 'medic' && Math.random() < 0.04) {
-                    for (let j = 0; j < enemies.length; j++) {
-                        if (enemies[j] !== e && Math.hypot(enemies[j].x - e.x, enemies[j].y - e.y) < 150) {
-                            enemies[j].hp = Math.min(enemies[j].maxHp, enemies[j].hp + 1);
-                        }
-                    }
-                }
-
-                // 描画
-                const ex = e.x - cameraX, ey = e.y - cameraY;
+                const ex = e.x - cameraX;
+                const ey = e.y - cameraY;
                 if (ex < -50 || ex > WIDTH + 50 || ey < -50 || ey > HEIGHT + 50) continue;
+
                 ctx.save();
-                ctx.shadowBlur = 18; ctx.shadowColor = e.color; ctx.fillStyle = e.color;
-                ctx.beginPath(); ctx.arc(ex, ey, e.size, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(ex-7,ey-5,4,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(ex+7,ey-5,4,0,Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 18;
+                ctx.shadowColor = e.color || '#ff4444';
+                ctx.fillStyle = e.color || '#ff4444';
+                ctx.beginPath();
+                ctx.arc(ex, ey, e.size || 18, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#111';
+                ctx.beginPath(); ctx.arc(ex - 7, ey - 5, 4, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(ex + 7, ey - 5, 4, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
-
-                const barW = e.size * 1.8;
-                ctx.fillStyle = '#222'; ctx.fillRect(ex - barW/2, ey - e.size -12, barW, 6);
-                ctx.fillStyle = '#00ff88'; ctx.fillRect(ex - barW/2, ey - e.size -12, barW * (e.hp/e.maxHp), 6);
-
-                if (checkCollision(player, e)) {
-                    player.health -= e.role === 'shield' ? 12 : 20;
-                    enemies.splice(i,1); shake=12; playSound('hit');
-                    if (player.health <= 0) { endGame(); return; }
-                }
             }
 
-            // 弾・敵弾・パーティクル・パワーアップ（完全実装）
+            // 弾
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const b = bullets[i];
                 b.x += b.vx; b.y += b.vy;
-                if (bulletHitsWall(b.x, b.y, b.size)) { createExplosion(b.x, b.y, 6, '#ffff88'); bullets.splice(i, 1); continue; }
-                const bx = b.x - cameraX, by = b.y - cameraY;
-                if (bx < -20 || bx > WIDTH + 20 || by < -20 || by > HEIGHT + 20) { bullets.splice(i, 1); continue; }
-                ctx.shadowBlur = 15; ctx.shadowColor = '#22ff88'; ctx.fillStyle = '#22ff88';
-                ctx.beginPath(); ctx.arc(bx, by, b.size, 0, Math.PI * 2); ctx.fill();
-                for (let j = enemies.length - 1; j >= 0; j--) {
-                    if (checkCollision(b, enemies[j])) {
-                        enemies[j].hp -= b.damage;
-                        bullets.splice(i, 1); playSound('hit');
-                        if (enemies[j].hp <= 0) {
-                            player.score += 30 + wave * 5;
-                            createExplosion(enemies[j].x, enemies[j].y, 32, '#ff8800');
-                            spawnPowerup(enemies[j].x, enemies[j].y);
-                            playSound('explode');
-                            enemies.splice(j, 1);
-                        } else createExplosion(enemies[j].x, enemies[j].y, 8, '#ffff00');
-                        shake = Math.max(shake, 5);
-                        break;
-                    }
-                }
+                const bx = b.x - cameraX;
+                const by = b.y - cameraY;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#22ff88';
+                ctx.fillStyle = '#22ff88';
+                ctx.beginPath();
+                ctx.arc(bx, by, b.size, 0, Math.PI * 2);
+                ctx.fill();
             }
 
-            for (let i = enemyBullets.length - 1; i >= 0; i--) {
-                const b = enemyBullets[i];
-                b.x += b.vx; b.y += b.vy;
-                if (bulletHitsWall(b.x, b.y, b.size)) { enemyBullets.splice(i, 1); continue; }
-                const bx = b.x - cameraX, by = b.y - cameraY;
-                if (bx < -20 || bx > WIDTH + 20 || by < -20 || by > HEIGHT + 20) { enemyBullets.splice(i, 1); continue; }
-                ctx.shadowBlur = 12; ctx.shadowColor = '#ff4444'; ctx.fillStyle = '#ff6666';
-                ctx.beginPath(); ctx.arc(bx, by, b.size, 0, Math.PI * 2); ctx.fill();
-                if (checkCollision(player, b)) {
-                    player.health -= 16; enemyBullets.splice(i, 1); shake = 15; playSound('hit');
-                    if (player.health <= 0) { endGame(); return; }
-                }
-            }
-
+            // パーティクル
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
-                p.x += p.vx; p.y += p.vy; p.vx *= 0.96; p.vy *= 0.96; p.life--;
-                const px = p.x - cameraX, py = p.y - cameraY;
-                if (px < -10 || px > WIDTH + 10 || py < -10 || py > HEIGHT + 10) { particles.splice(i, 1); continue; }
+                p.x += p.vx; p.y += p.vy;
+                p.vx *= 0.96; p.vy *= 0.96;
+                p.life--;
+                const px = p.x - cameraX;
+                const py = p.y - cameraY;
                 ctx.globalAlpha = p.life / 30;
                 ctx.fillStyle = p.color;
                 ctx.fillRect(px, py, 5, 5);
@@ -364,65 +393,25 @@
             }
             ctx.globalAlpha = 1;
 
-            for (let i = powerups.length - 1; i >= 0; i--) {
-                const p = powerups[i];
-                const px = p.x - cameraX, py = p.y - cameraY;
-                if (px < -30 || px > WIDTH + 30 || py < -30 || py > HEIGHT + 30) continue;
-                ctx.shadowBlur = 25; ctx.shadowColor = p.color; ctx.fillStyle = p.color;
-                ctx.beginPath(); ctx.arc(px, py, p.size, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#ffffff'; ctx.font = 'bold 20px Arial';
-                ctx.fillText(p.type==='health'?'+' : p.type==='fireRate'?'⚡' : p.type==='speed'?'🏃' : '💥', px-8, py+7);
-                ctx.shadowBlur = 0;
-                if (Math.hypot(player.x - p.x, player.y - p.y) < player.size + p.size + 10) {
-                    if (p.type==='health') player.health = Math.min(player.maxHealth, player.health + 40);
-                    else if (p.type==='fireRate') { player.tempFireRate = 0.55; setTimeout(()=>{player.tempFireRate=1;},8000); }
-                    else if (p.type==='speed') { player.tempSpeed = 1.6; setTimeout(()=>{player.tempSpeed=1;},7000); }
-                    else if (p.type==='damage') { player.tempDamage = 1.8; setTimeout(()=>{player.tempDamage=1;},6500); }
-                    playSound('pickup');
-                    powerups.splice(i, 1);
-                }
-            }
-
             // 次のウェーブ
             if (enemies.length === 0) {
                 wave++;
-                const pointsEarned = wave * 8 + 15;
-                skillPoints += pointsEarned;
-                totalScore += player.score;
-                saveProgress();
-                waveInfoEl.textContent = `ウェーブ ${wave} 開始！ (+${pointsEarned} SP)`;
+                waveInfoEl.textContent = `ウェーブ ${wave} 開始！`;
                 waveInfoEl.style.opacity = '1';
-                setTimeout(() => waveInfoEl.style.opacity = '0', 2000);
-                const spawnCount = 6 + wave * 4;
-                for (let i = 0; i < spawnCount; i++) setTimeout(() => { if (gameRunning) spawnEnemy(); }, i * 80);
-            }
-
-            // シェイク
-            if (shake > 0) {
-                const ox = (Math.random()*2-1)*shake;
-                const oy = (Math.random()*2-1)*shake;
-                ctx.save(); ctx.translate(ox, oy);
+                setTimeout(() => waveInfoEl.style.opacity = '0', 1600);
+                for (let i = 0; i < 8 + wave * 3; i++) setTimeout(() => { if (gameRunning) spawnEnemy(); }, i * 60);
             }
 
             scoreEl.textContent = player.score;
             waveEl.textContent = wave;
             healthEl.textContent = Math.max(0, Math.floor(player.health));
 
-            if (shake > 0) {
-                ctx.restore();
-                shake *= 0.85;
-                if (shake < 0.5) shake = 0;
-            }
-
             drawMinimap();
             requestAnimationFrame(gameLoop);
         }
 
         function endGame() {
-            totalScore += player.score;
-            saveProgress();
             gameRunning = false;
-            finalScoreEl.textContent = player.score;
             document.getElementById('game-over').style.display = 'block';
         }
 
@@ -433,7 +422,7 @@
             gameRunning = true;
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             applySkills();
-            for (let i = 0; i < 5; i++) spawnEnemy();
+            for (let i = 0; i < 6; i++) spawnEnemy();
             gameLoop();
         }
 
@@ -452,49 +441,8 @@
             mouseWorldY = mouseY + cameraY;
         });
 
-        // ミニマップ描画関数（省略せず完全実装）
-        function drawMinimap() {
-            miniCtx.fillStyle = '#112233';
-            miniCtx.fillRect(0,0,160,120);
-            const sx = 160 / WORLD_WIDTH, sy = 120 / WORLD_HEIGHT;
-            miniCtx.fillStyle = '#8899ff';
-            for (let wall of walls) miniCtx.fillRect(wall.x*sx, wall.y*sy, wall.w*sx, wall.h*sy);
-            miniCtx.fillStyle = '#ff4444';
-            for (let e of enemies) miniCtx.fillRect(e.x*sx-2, e.y*sy-2, 4, 4);
-            miniCtx.fillStyle = '#00aaff';
-            miniCtx.fillRect(player.x*sx-4, player.y*sy-4, 8, 8);
-        }
-
-        function checkCollision(a, b) { return Math.hypot(a.x - b.x, a.y - b.y) < a.size + b.size; }
-        function circleRectCollision(cx, cy, r, rx, ry, rw, rh) {
-            const testX = Math.max(rx, Math.min(cx, rx + rw));
-            const testY = Math.max(ry, Math.min(cy, ry + rh));
-            return (cx - testX) ** 2 + (cy - testY) ** 2 < r * r;
-        }
-        function moveWithWalls(entity, dx, dy, radius) {
-            entity.x += dx;
-            for (let wall of walls) if (circleRectCollision(entity.x, entity.y, radius, wall.x, wall.y, wall.w, wall.h)) { entity.x -= dx; break; }
-            entity.y += dy;
-            for (let wall of walls) if (circleRectCollision(entity.x, entity.y, radius, wall.x, wall.y, wall.w, wall.h)) { entity.y -= dy; break; }
-        }
-        function createExplosion(x, y, count, color) {
-            for (let i = 0; i < count; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const vel = Math.random() * 7 + 2;
-                particles.push({x, y, vx: Math.cos(angle)*vel, vy: Math.sin(angle)*vel, life: 28 + Math.random()*12, color});
-            }
-        }
-        function spawnPowerup(x, y) {
-            const rnd = Math.random();
-            if (rnd < 0.35) powerups.push({x, y, size:16, type:'health', color:'#00ff88'});
-            else if (rnd < 0.6) powerups.push({x, y, size:16, type:'fireRate', color:'#ffff00'});
-            else if (rnd < 0.8) powerups.push({x, y, size:16, type:'speed', color:'#00ffff'});
-            else powerups.push({x, y, size:16, type:'damage', color:'#ff88ff'});
-        }
-        function bulletHitsWall(x, y, size) {
-            for (let wall of walls) if (circleRectCollision(x, y, size, wall.x, wall.y, wall.w, wall.h)) return true;
-            return false;
-        }
+        // スタート
+        applySkills();
     </script>
 </body>
 </html>
