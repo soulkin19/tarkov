@@ -668,9 +668,9 @@
  waveInfoEl.style.opacity = '1';
  setTimeout(() => { waveInfoEl.style.opacity = '0'; }, 1600);
 
- if (wave >= 5) {
+ if (wave >= 1) {
  // 特殊部隊：最低2部隊（ウェーブが進むと少し増加）
- const numSquads = 2 + Math.floor((wave - 5) / 3);
+ const numSquads = 1 + Math.floor((wave - 5) / 3);
  for (let s = 0; s < numSquads; s++) {
  setTimeout(() => { if (gameRunning) spawnSquad(); }, s * 650 + 300);
  }
