@@ -668,7 +668,7 @@
                 waveInfoEl.style.opacity = '1';
                 setTimeout(() => { waveInfoEl.style.opacity = '0'; }, 1600);
 
-                if (wave >= 5) {
+                if (wave >= 1) {
                     // 特殊部隊の最大出現数
                     const maxSquadsPerWave = 4;           // ← ここで特殊部隊の最高数を調整
                     const numSquads = Math.min(maxSquadsPerWave, 2 + Math.floor((wave - 5) / 3));
@@ -677,17 +677,7 @@
                         setTimeout(() => { if (gameRunning) spawnSquad(); }, s * 650 + 300);
                     }
 
-                    // 通常敵は少なく抑える
-                    const normalCount = Math.min(6, 2 + Math.floor(wave / 3));
-                    for (let i = 0; i < normalCount; i++) {
-                        setTimeout(() => { if (gameRunning) spawnEnemy(); }, 2000 + i * 120);
-                    }
-                } else {
-                    // ウェーブ1〜4は従来通り
-                    const spawnCount = 6 + wave * 3;      // 少し減らしても良い
-                    for (let i = 0; i < spawnCount; i++) {
-                        setTimeout(() => { if (gameRunning) spawnEnemy(); }, i * 90);
-                    }
+                  
                 }
             }
  if (shake > 0) {
