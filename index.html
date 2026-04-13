@@ -662,29 +662,34 @@
  }
 
  // ウェーブクリア判定（ウェーブ5以降は特殊部隊を最低2部隊出現）
- if (enemies.length === 0) {
- wave++;
- waveInfoEl.textContent = `ウェーブ ${wave} 開始！`;
- waveInfoEl.style.opacity = '1';
- setTimeout(() => { waveInfoEl.style.opacity = '0'; }, 1600);
+             if (enemies.length === 0) {
+                wave++;
+                waveInfoEl.textContent = `ウェーブ ${wave} 開始！`;
+                waveInfoEl.style.opacity = '1';
+                setTimeout(() => { waveInfoEl.style.opacity = '0'; }, 1600);
 
- if (wave >= 1) {
- // 特殊部隊：最低2部隊（ウェーブが進むと少し増加）
- const numSquads = 1 + Math.floor((wave - 5) / 3);
- for (let s = 0; s < numSquads; s++) {
- setTimeout(() => { if (gameRunning) spawnSquad(); }, s * 650 + 300);
- }
- // 通常敵も少し出現
- const normalCount = 4 + Math.floor(wave / 2);
- for (let i = 0; i < normalCount; i++) {
- setTimeout(() => { if (gameRunning) spawnEnemy(); }, 1800 + i * 80);
- }
- } else {
- const spawnCount = 6 + wave * 4;
- for (let i = 0; i < spawnCount; i++) setTimeout(() => { if (gameRunning) spawnEnemy(); }, i * 90);
- }
- }
+                if (wave >= 5) {
+                    // 特殊部隊の最大出現数
+                    const maxSquadsPerWave = 4;           // ← ここで特殊部隊の最高数を調整
+                    const numSquads = Math.min(maxSquadsPerWave, 2 + Math.floor((wave - 5) / 3));
 
+                    for (let s = 0; s < numSquads; s++) {
+                        setTimeout(() => { if (gameRunning) spawnSquad(); }, s * 650 + 300);
+                    }
+
+                    // 通常敵は少なく抑える
+                    const normalCount = Math.min(6, 2 + Math.floor(wave / 3));
+                    for (let i = 0; i < normalCount; i++) {
+                        setTimeout(() => { if (gameRunning) spawnEnemy(); }, 2000 + i * 120);
+                    }
+                } else {
+                    // ウェーブ1〜4は従来通り
+                    const spawnCount = 6 + wave * 3;      // 少し減らしても良い
+                    for (let i = 0; i < spawnCount; i++) {
+                        setTimeout(() => { if (gameRunning) spawnEnemy(); }, i * 90);
+                    }
+                }
+            }
  if (shake > 0) {
  const ox = (Math.random() * 2 - 1) * shake;
  const oy = (Math.random() * 2 - 1) * shake;
