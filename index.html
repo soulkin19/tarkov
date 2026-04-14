@@ -53,7 +53,6 @@
             <button id="def-1" class="btn sys-btn selected">誘導ミサイル<small>マウス追従</small></button>
             <button id="def-6" class="btn sys-btn">ADS<small>敵弾迎撃バリア</small></button>
             <button id="def-7" class="btn sys-btn">リモートC4<small>設置・起爆</small></button>
-            <button id="def-3" class="btn sys-btn">タクティカルスモーク<small>直線壁</small></button>
             <button id="def-4" class="btn sys-btn">近接信管弾<small>自動爆発</small></button>
         </div>
 
@@ -102,8 +101,7 @@
             '5': { name: "HESH(粘着榴弾)", power: 12, reload: 35, speed: 10, color: "#9b59b6", isExplosive: true, bigExplosion: true },
             '6': { name: "フレシェット弾", power: 3, reload: 40, speed: 15, color: "#7f8c8d", isFlechette: true },
             '7': { name: "APHE(徹甲榴弾)", power: 25, reload: 50, speed: 18, color: "#e74c3c", isExplosive: true },
-            '9': { name: "多弾頭榴弾", power: 15, reload: 60, speed: 10, color: "#d35400", isExplosive: true, isCluster: true },
-            '12': { name: "スモーク弾", power: 0, reload: 40, speed: 14, color: "#bdc3c7", isSmokeShell: true }
+            '9': { name: "多弾頭榴弾", power: 15, reload: 60, speed: 10, color: "#d35400", isExplosive: true, isCluster: true }
         };
 
         const player = {
@@ -112,11 +110,11 @@
             reloading: 0, maxReload: 0, currentAmmo: '1', name: "Guest",
             gadgetCD: 0, repairPool: 0,
             defense: 1, defenseCD: 0, adsActive: 0, c4: null,
-            engineBroken: 0, inOwnSmoke: false, shake: 0,
+            engineBroken: 0, shake: 0,
             burstLeft: 0, burstTimer: 0
         };
 
-        const players = {}, shells = [], explosions = [], smokes = [], keys = {};
+        const players = {}, shells = [], explosions = [], keys = {};
         let isMobileMode = false;
 
         const walls = [
@@ -183,7 +181,7 @@
                 document.getElementById(id).classList.add('selected');
             };
         }
-        ['type-heavy','type-medium','type-light','def-1','def-3','def-4','def-6','def-7'].forEach(setupSelect);
+        ['type-heavy','type-medium','type-light','def-1','def-4','def-6','def-7'].forEach(setupSelect);
 
         document.getElementById('start-game').onclick = () => {
             player.name = prompt("名前を入力", "T34") || "Guest";
@@ -206,16 +204,8 @@
                 if (data.type === 'fire') shells.push(data.shell);
                 if (data.type === 'boom') createExplosion(data.x, data.y, data.power, data.ownerName, data.weaponName, false);
                 if (data.type === 'kill') showKillLog(data.victim, data.attacker, data.weaponName);
-                if (data.type === 'smokeLine') spawnSmokeLine(data.x, data.y, data.angle, data.ownerId);
                 if (data.type === 'c4_placed') players[data.ownerId].c4 = { x: data.x, y: data.y };
             };
-        }
-
-        function spawnSmokeLine(x, y, angle, ownerId) {
-            const length = 12, spacing = 45;
-            for (let i = 0; i < length; i++) {
-                smokes.push({ x: x + Math.cos(angle) * i * spacing, y: y + Math.sin(angle) * i * spacing, r: 65, life: 450, ownerId: ownerId });
-            }
         }
 
         function useGadget() {
@@ -241,10 +231,6 @@
                     createExplosion(player.c4.x, player.c4.y, 60, player.name, "リモートC4", true);
                     player.c4 = null; player.defenseCD = 400;
                 }
-            } else if(player.defense === 3) {
-                spawnSmokeLine(player.x, player.y, tAngle, player.id);
-                socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'smokeLine', x: player.x, y: player.y, angle: tAngle, ownerId: player.id})}));
-                player.defenseCD = 600;
             } else if(player.defense === 4) {
                 const s = { x: player.x, y: player.y, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 18, color: "#2ecc71", isProxy: true, isExplosive: true, owner: player.id, ownerName: player.name, weaponName: "近接信管弾", life: 180 };
                 shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
@@ -267,7 +253,7 @@
                     x: player.x + Math.cos(player.turretAngle)*45, y: player.y + Math.sin(player.turretAngle)*45, 
                     vx: Math.cos(player.turretAngle)*a.speed, vy: Math.sin(player.turretAngle)*a.speed, 
                     power: a.power * spec.powerMult, bounce: a.bounce, color: a.color, 
-                    isExplosive: a.isExplosive, isCluster: a.isCluster, isSmokeShell: a.isSmokeShell,
+                    isExplosive: a.isExplosive, isCluster: a.isCluster, 
                     owner: player.id, ownerName: player.name, weaponName: a.name, life: 200, bCount: 3,
                     bigExp: a.bigExplosion 
                 };
@@ -355,7 +341,6 @@
                     shells.splice(i,1);
                 }
             }
-            smokes.forEach((sm, i) => { if(sm.life-- <= 0) smokes.splice(i,1); });
             explosions.forEach((e, i) => { e.r += 4; if(e.life-- <= 0) explosions.splice(i,1); });
 
             if (keys[' '] && player.reloading <= 0 && player.hp > 0) {
