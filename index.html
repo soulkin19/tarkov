@@ -21,7 +21,7 @@
         .bar-bg { width: 100%; height: 6px; background: #ccc; margin-top: 4px; border-radius: 3px; overflow: hidden; }
         #gadget-bar { width: 0%; height: 100%; background: #8e44ad; }
         #defense-bar { width: 0%; height: 100%; background: #2980b9; }
-        #killLog { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); color: #c0392b; font-size: 18px; text-shadow: 1px 1px 0 #fff; text-align: center; width: 90%; font-weight: bold; pointer-events: none; }
+        #killLog { position: absolute; top: 10px; right: 10px; color: #c0392b; font-size: 18px; text-shadow: 1px 1px 0 #fff; text-align: right; width: 320px; font-weight: bold; pointer-events: none; }
         #death-overlay { position: absolute; inset: 0; background: radial-gradient(circle, transparent 20%, rgba(255,0,0,0.4) 100%); pointer-events: none; display: none; z-index: 50; }
 
         #mobile-controls { display: none; position: absolute; inset: 0; pointer-events: none; z-index: 20; }
@@ -37,30 +37,6 @@
     </style>
 </head>
 <body>
-
-    <div id="death-overlay"></div>
-
-    <div id="setup">
-        <h1 style="color:#f1c40f;">TANK ONLINE: TACTICAL</h1>
-        
-        <div class="label">戦車タイプ選択</div>
-        <div class="opt-group">
-            <button id="type-heavy" class="btn sys-btn">重戦車<small>HP:150 / 高火力</small></button>
-            <button id="type-medium" class="btn sys-btn selected">中戦車<small>HP:100 / 標準</small></button>
-            <button id="type-light" class="btn sys-btn">軽戦車<small>HP:60 / 高速</small></button>
-        </div>
-
-        <div class="label">セカンダリ武装 [Q]</div>
-        <div class="opt-group">
-            <button id="def-1" class="btn sys-btn selected">誘導ミサイル<small>マウス追従</small></button>
-            <button id="def-2" class="btn sys-btn">対空機銃<small>迎撃連射</small></button>
-            <button id="def-3" class="btn sys-btn">タクティカルスモーク<small>自分専用・直線壁</small></button>
-            <button id="def-4" class="btn sys-btn">近接信管弾<small>自動爆発</small></button>
-            <button id="def-5" class="btn sys-btn">ワイヤートラップ<small>超減速地帯</small></button>
-        </div>
-
-        <button id="start-game" class="btn" style="background:#f1c40f; color:#000; width:300px; font-size:20px; margin-top:20px;">BATTLE START</button>
-    </div>
 
     <div id="ui">
         <div id="hpDisplay" style="font-size:18px; font-weight:bold;">HP: 100</div>
@@ -173,7 +149,6 @@
             const spec = tankSpecs[player.type];
             player.hp = spec.hp; player.maxHp = spec.maxHp;
             player.vx = 0; player.vy = 0; player.engineBroken = 0; player.repairPool = 0;
-            document.getElementById('death-overlay').style.display = 'none';
         }
 
         function setupSelect(id) {
@@ -312,8 +287,6 @@
             while(diff < -Math.PI) diff += Math.PI*2; while(diff > Math.PI) diff -= Math.PI*2;
             player.engineBroken = (Math.abs(diff) > 2.0) ? 300 : Math.max(player.engineBroken, 40);
             if (player.hp <= 0) {
-                document.getElementById('death-overlay').style.display = 'block';
-                createExplosion(player.x, player.y, 80, "SYSTEM", "FATAL", true);
                 socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'kill', victim:player.name, attacker:ownerName, weaponName:weaponName})}));
                 setTimeout(respawn, 2500);
             }
