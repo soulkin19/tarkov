@@ -22,7 +22,6 @@
         #gadget-bar { width: 0%; height: 100%; background: #8e44ad; }
         #defense-bar { width: 0%; height: 100%; background: #2980b9; }
 
-        /* キルログを画面右上に配置 */
         #killLog { position: absolute; top: 10px; right: 10px; color: #c0392b; font-size: 14px; text-shadow: 1px 1px 0 #fff; text-align: right; width: auto; font-weight: bold; pointer-events: none; z-index: 60; }
 
         #mobile-controls { display: none; position: absolute; inset: 0; pointer-events: none; z-index: 20; }
@@ -52,10 +51,10 @@
         <div class="label">セカンダリ武装 [Q]</div>
         <div class="opt-group">
             <button id="def-1" class="btn sys-btn selected">誘導ミサイル<small>マウス追従</small></button>
-            <button id="def-2" class="btn sys-btn">対空機銃<small>迎撃連射</small></button>
-            <button id="def-3" class="btn sys-btn">タクティカルスモーク<small>自分専用・直線壁</small></button>
+            <button id="def-6" class="btn sys-btn">ADS<small>敵弾迎撃バリア</small></button>
+            <button id="def-7" class="btn sys-btn">リモートC4<small>設置・起爆</small></button>
+            <button id="def-3" class="btn sys-btn">タクティカルスモーク<small>直線壁</small></button>
             <button id="def-4" class="btn sys-btn">近接信管弾<small>自動爆発</small></button>
-            <button id="def-5" class="btn sys-btn">ワイヤートラップ<small>超減速地帯</small></button>
         </div>
 
         <button id="start-game" class="btn" style="background:#f1c40f; color:#000; width:300px; font-size:20px; margin-top:20px;">BATTLE START</button>
@@ -100,9 +99,11 @@
             '2': { name: "120mm徹甲弾", power: 22, reload: 25, bounce: true, speed: 13, color: "#34495e" },
             '3': { name: "120mmAPFSDS", power: 35, reload: 125, speed: 55, color: "#2c3e50" },
             '4': { name: "40mmグレネード", power: 6, reload: 12, bounce: true, speed: 8, color: "#f1c40f" },
+            '5': { name: "HESH(粘着榴弾)", power: 12, reload: 35, speed: 10, color: "#9b59b6", isExplosive: true, bigExplosion: true },
+            '6': { name: "フレシェット弾", power: 3, reload: 40, speed: 15, color: "#7f8c8d", isFlechette: true },
+            '7': { name: "APHE(徹甲榴弾)", power: 25, reload: 50, speed: 18, color: "#e74c3c", isExplosive: true },
             '9': { name: "多弾頭榴弾", power: 15, reload: 60, speed: 10, color: "#d35400", isExplosive: true, isCluster: true },
-            '12': { name: "スモーク弾", power: 0, reload: 40, speed: 14, color: "#bdc3c7", isSmokeShell: true },
-            '23': { name: "バースト機関砲", power: 4, reload: 50, speed: 16, color: "#7f8c8d", isBurst: true }
+            '12': { name: "スモーク弾", power: 0, reload: 40, speed: 14, color: "#bdc3c7", isSmokeShell: true }
         };
 
         const player = {
@@ -110,7 +111,7 @@
             type: 'medium', x: 0, y: 0, angle: 0, turretAngle: 0, vx: 0, vy: 0, hp: 100, maxHp: 100,
             reloading: 0, maxReload: 0, currentAmmo: '1', name: "Guest",
             gadgetCD: 0, repairPool: 0,
-            defense: 1, defenseCD: 0,
+            defense: 1, defenseCD: 0, adsActive: 0, c4: null,
             engineBroken: 0, inOwnSmoke: false, shake: 0,
             burstLeft: 0, burstTimer: 0
         };
@@ -169,8 +170,7 @@
             }
             const spec = tankSpecs[player.type];
             player.hp = spec.hp; player.maxHp = spec.maxHp;
-            player.vx = 0; player.vy = 0; player.engineBroken = 0; player.repairPool = 0;
-            // デッドオーバーレイ削除につき、ここでの非表示処理も削除
+            player.vx = 0; player.vy = 0; player.engineBroken = 0; player.repairPool = 0; player.c4 = null;
         }
 
         function setupSelect(id) {
@@ -183,7 +183,7 @@
                 document.getElementById(id).classList.add('selected');
             };
         }
-        ['type-heavy','type-medium','type-light','def-1','def-2','def-3','def-4','def-5'].forEach(setupSelect);
+        ['type-heavy','type-medium','type-light','def-1','def-3','def-4','def-6','def-7'].forEach(setupSelect);
 
         document.getElementById('start-game').onclick = () => {
             player.name = prompt("名前を入力", "T34") || "Guest";
@@ -206,32 +206,21 @@
                 if (data.type === 'fire') shells.push(data.shell);
                 if (data.type === 'boom') createExplosion(data.x, data.y, data.power, data.ownerName, data.weaponName, false);
                 if (data.type === 'kill') showKillLog(data.victim, data.attacker, data.weaponName);
-                if (data.type === 'smokePoint') spawnSmokePoint(data.x, data.y, data.ownerId);
                 if (data.type === 'smokeLine') spawnSmokeLine(data.x, data.y, data.angle, data.ownerId);
+                if (data.type === 'c4_placed') players[data.ownerId].c4 = { x: data.x, y: data.y };
             };
-        }
-
-        function spawnSmokePoint(x, y, ownerId) {
-            for(let i=0; i<3; i++) {
-                smokes.push({ x: x+(Math.random()-0.5)*20, y: y+(Math.random()-0.5)*20, r: 80, life: 400, ownerId: ownerId });
-            }
         }
 
         function spawnSmokeLine(x, y, angle, ownerId) {
             const length = 12, spacing = 45;
             for (let i = 0; i < length; i++) {
-                smokes.push({
-                    x: x + Math.cos(angle) * i * spacing,
-                    y: y + Math.sin(angle) * i * spacing,
-                    r: 65, life: 450, ownerId: ownerId
-                });
+                smokes.push({ x: x + Math.cos(angle) * i * spacing, y: y + Math.sin(angle) * i * spacing, r: 65, life: 450, ownerId: ownerId });
             }
         }
 
         function useGadget() {
             if(player.gadgetCD > 0) return;
-            player.repairPool = 30; 
-            player.gadgetCD = 600;
+            player.repairPool = 30; player.gadgetCD = 600;
         }
 
         function useDefense() {
@@ -242,13 +231,15 @@
                 const s = { x: player.x, y: player.y, vx: Math.cos(tAngle)*6, vy: Math.sin(tAngle)*6, power: 40, color: "#c0392b", isMissile: true, isExplosive: true, owner: player.id, ownerName: player.name, weaponName: "ミサイル", life: 500 };
                 shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
                 player.defenseCD = 500;
-            } else if(player.defense === 2) {
-                player.defenseCD = 200;
-                for(let i=0; i<12; i++) {
-                    setTimeout(() => {
-                        const s = { x: player.x, y: player.y, vx: Math.cos(tAngle + (Math.random()-0.5)*0.15)*22, vy: Math.sin(tAngle + (Math.random()-0.5)*0.15)*22, power: 2, color: "#f1c40f", owner: player.id, life: 45, weaponName: "対空機銃" };
-                        shells.push(s);
-                    }, i * 40);
+            } else if(player.defense === 6) { // ADS
+                player.adsActive = 240; player.defenseCD = 700;
+            } else if(player.defense === 7) { // C4
+                if (!player.c4) {
+                    player.c4 = { x: player.x, y: player.y };
+                    socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'c4_placed', x: player.x, y: player.y, ownerId: player.id})}));
+                } else {
+                    createExplosion(player.c4.x, player.c4.y, 60, player.name, "リモートC4", true);
+                    player.c4 = null; player.defenseCD = 400;
                 }
             } else if(player.defense === 3) {
                 spawnSmokeLine(player.x, player.y, tAngle, player.id);
@@ -258,28 +249,33 @@
                 const s = { x: player.x, y: player.y, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 18, color: "#2ecc71", isProxy: true, isExplosive: true, owner: player.id, ownerName: player.name, weaponName: "近接信管弾", life: 180 };
                 shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
                 player.defenseCD = 350;
-            } else if(player.defense === 5) {
-                const s = { x: player.x, y: player.y, vx: 0, vy: 0, power: 0, color: "rgba(52, 73, 94, 0.4)", isWire: true, owner: player.id, life: 800, weaponName: "ワイヤートラップ" };
-                shells.push(s); 
-                socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
-                player.defenseCD = 450;
             }
         }
 
         function fireShell(ammoKey) {
             const spec = tankSpecs[player.type];
             const a = ammoTypes[ammoKey];
-            const s = { 
-                x: player.x + Math.cos(player.turretAngle)*45, y: player.y + Math.sin(player.turretAngle)*45, 
-                vx: Math.cos(player.turretAngle)*a.speed, vy: Math.sin(player.turretAngle)*a.speed, 
-                power: a.power * spec.powerMult, bounce: a.bounce, color: a.color, 
-                isExplosive: a.isExplosive, isCluster: a.isCluster, isSmokeShell: a.isSmokeShell,
-                owner: player.id, ownerName: player.name, weaponName: a.name, life: 200, bCount: 3 
-            };
-            shells.push(s);
-            socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
-            player.vx -= Math.cos(player.turretAngle) * (s.power * 0.15);
-            player.vy -= Math.sin(player.turretAngle) * (s.power * 0.15);
+            
+            if (a.isFlechette) {
+                for(let i=0; i<12; i++) {
+                    const ang = player.turretAngle + (Math.random()-0.5)*0.25;
+                    const s = { x: player.x + Math.cos(ang)*45, y: player.y + Math.sin(ang)*45, vx: Math.cos(ang)*a.speed*(0.9+Math.random()*0.2), vy: Math.sin(ang)*a.speed*(0.9+Math.random()*0.2), power: a.power * spec.powerMult, color: a.color, owner: player.id, ownerName: player.name, weaponName: a.name, life: 40 };
+                    shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
+                }
+            } else {
+                const s = { 
+                    x: player.x + Math.cos(player.turretAngle)*45, y: player.y + Math.sin(player.turretAngle)*45, 
+                    vx: Math.cos(player.turretAngle)*a.speed, vy: Math.sin(player.turretAngle)*a.speed, 
+                    power: a.power * spec.powerMult, bounce: a.bounce, color: a.color, 
+                    isExplosive: a.isExplosive, isCluster: a.isCluster, isSmokeShell: a.isSmokeShell,
+                    owner: player.id, ownerName: player.name, weaponName: a.name, life: 200, bCount: 3,
+                    bigExp: a.bigExplosion 
+                };
+                shells.push(s);
+                socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
+            }
+            player.vx -= Math.cos(player.turretAngle) * (a.power * 0.1);
+            player.vy -= Math.sin(player.turretAngle) * (a.power * 0.1);
         }
 
         window.onkeydown = (e) => { 
@@ -291,21 +287,17 @@
         window.onkeyup = (e) => keys[e.key] = false;
 
         function createExplosion(x, y, power, ownerName, weaponName, isOwner) {
-            // 爆破エフェクトの配列へのプッシュを削除し、ロジックのみ残す
+            const isCritical = power >= 25;
+            explosions.push({ x, y, r: 0, life: isCritical ? 45 : 25, critical: isCritical });
             if (isOwner) {
                 socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'boom', x, y, power, ownerName, weaponName})}));
-                if (Math.hypot(player.x - x, player.y - y) < 85) processDamage(power * 0.8, x, y, ownerName, weaponName);
+                if (Math.hypot(player.x - x, player.y - y) < 100) processDamage(power * 0.8, x, y, ownerName, weaponName);
             }
         }
 
         function processDamage(power, hitX, hitY, ownerName, weaponName) {
             player.hp -= power; player.shake = Math.min(30, power);
-            const angleToHit = Math.atan2(hitY - player.y, hitX - player.x);
-            let diff = angleToHit - player.angle;
-            while(diff < -Math.PI) diff += Math.PI*2; while(diff > Math.PI) diff -= Math.PI*2;
-            player.engineBroken = (Math.abs(diff) > 2.0) ? 300 : Math.max(player.engineBroken, 40);
             if (player.hp <= 0) {
-                // デッドオーバーレイ表示処理を削除
                 createExplosion(player.x, player.y, 80, "SYSTEM", "FATAL", true);
                 socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'kill', victim:player.name, attacker:ownerName, weaponName:weaponName})}));
                 setTimeout(respawn, 2500);
@@ -314,9 +306,7 @@
 
         function update() {
             const spec = tankSpecs[player.type];
-            const inWire = shells.some(s => s.isWire && Math.hypot(player.x - s.x, player.y - s.y) < 150);
             let moveSpeed = (player.engineBroken > 0 ? 0.2 : spec.speed);
-            if (inWire) moveSpeed *= 0.25;
 
             if (isMobileMode && stickData.active) {
                 const targetAngle = Math.atan2(stickData.y, stickData.x);
@@ -334,67 +324,49 @@
             player.vx *= 0.91; player.vy *= 0.91;
             if (!isPointInWall(player.x + player.vx, player.y + player.vy, 22 * spec.size)) { player.x += player.vx; player.y += player.vy; }
 
-            player.inOwnSmoke = smokes.some(sm => sm.ownerId === player.id && Math.hypot(player.x - sm.x, player.y - sm.y) < sm.r);
             if(player.repairPool > 0) { const amt = 0.15; player.hp = Math.min(player.maxHp, player.hp + amt); player.repairPool -= amt; }
-
             if(player.reloading > 0) player.reloading--;
             if(player.gadgetCD > 0) player.gadgetCD--;
             if(player.defenseCD > 0) player.defenseCD--;
-            if(player.engineBroken > 0) player.engineBroken--;
+            if(player.adsActive > 0) player.adsActive--;
             if(player.shake > 0) player.shake *= 0.9;
-
-            if (player.burstLeft > 0 && player.burstTimer-- <= 0) {
-                fireShell(player.currentAmmo);
-                player.burstLeft--; player.burstTimer = 6;
-            }
-
-            if (keys[' '] && player.reloading <= 0 && player.hp > 0) {
-                const a = ammoTypes[player.currentAmmo];
-                if (a.isBurst) { player.burstLeft = 3; player.burstTimer = 0; }
-                else { fireShell(player.currentAmmo); }
-                player.reloading = a.reload * spec.reloadMult; player.maxReload = player.reloading;
-            }
 
             for (let i = shells.length-1; i >= 0; i--) {
                 const s = shells[i];
-                if (s.isMissile && s.owner === player.id) {
-                    let curA = Math.atan2(s.vy, s.vx), diff = player.turretAngle - curA;
-                    while(diff < -Math.PI) diff += Math.PI*2; while(diff > Math.PI) diff -= Math.PI*2;
-                    s.vx = Math.cos(curA + diff * 0.12) * 8; s.vy = Math.sin(curA + diff * 0.12) * 8;
+                // ADS効果
+                if (player.adsActive > 0 && s.owner !== player.id && Math.hypot(player.x - s.x, player.y - s.y) < 120) {
+                    explosions.push({ x: s.x, y: s.y, r: 0, life: 10, critical: false });
+                    shells.splice(i,1); continue;
                 }
-                if (s.isProxy && s.owner === player.id) {
-                    for (let id in players) if (Math.hypot(s.x - players[id].x, s.y - players[id].y) < 65) s.life = 0;
-                }
-                s.x += s.vx; s.y += s.vy; s.life--;
 
+                s.x += s.vx; s.y += s.vy; s.life--;
                 const hitW = walls.find(w => s.x > w.x && s.x < w.x + w.w && s.y > w.y && s.y < w.y + w.h);
-                if (hitW && !s.isWire) {
+                if (hitW) {
                     if (s.bounce && s.bCount-- > 0) { if (s.x - s.vx <= hitW.x || s.x - s.vx >= hitW.x + hitW.w) s.vx *= -1; else s.vy *= -1; }
                     else { s.life = 0; }
                 }
-                if (s.owner !== player.id && Math.hypot(player.x-s.x, player.y-s.y) < 32 * spec.size && !s.isWire) {
+                if (s.owner !== player.id && Math.hypot(player.x-s.x, player.y-s.y) < 32 * spec.size) {
                     if (s.isExplosive) createExplosion(s.x, s.y, s.power, s.ownerName, s.weaponName, true);
                     else processDamage(s.power, s.x, s.y, s.ownerName, s.weaponName);
                     shells.splice(i,1); continue;
                 }
                 if (s.life <= 0) {
-                    if (s.isExplosive) createExplosion(s.x, s.y, s.power, s.ownerName, s.weaponName, s.owner === player.id);
-                    if (s.isCluster && s.owner === player.id) {
-                        for(let j=0; j<8; j++) shells.push({x:s.x, y:s.y, vx:Math.cos(j)*6, vy:Math.sin(j)*6, power:6, color:s.color, isExplosive:true, owner:s.owner, life:25});
-                    }
-                    if (s.isSmokeShell && s.owner === player.id) {
-                        spawnSmokePoint(s.x, s.y, s.owner);
-                        socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'smokePoint', x: s.x, y: s.y, ownerId: s.owner})}));
-                    }
+                    if (s.isExplosive) createExplosion(s.x, s.y, s.bigExp ? 45 : s.power, s.ownerName, s.weaponName, s.owner === player.id);
                     shells.splice(i,1);
                 }
             }
             smokes.forEach((sm, i) => { if(sm.life-- <= 0) smokes.splice(i,1); });
-            // 爆破演出更新処理(explosions.forEach)を削除
+            explosions.forEach((e, i) => { e.r += 4; if(e.life-- <= 0) explosions.splice(i,1); });
+
+            if (keys[' '] && player.reloading <= 0 && player.hp > 0) {
+                fireShell(player.currentAmmo);
+                player.reloading = ammoTypes[player.currentAmmo].reload * spec.reloadMult; player.maxReload = player.reloading;
+            }
+
             if (socket?.readyState === 1) {
                 socket.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({
                     type: 'move', id: player.id, x: player.x, y: player.y, angle: player.angle, tAngle: player.turretAngle, 
-                    hp: player.hp, name: player.name, eng: (player.engineBroken > 0), hide: player.inOwnSmoke, tankType: player.type
+                    hp: player.hp, name: player.name, tankType: player.type
                 })}));
             }
             document.getElementById('hpDisplay').innerText = `HP: ${Math.ceil(player.hp)}`;
@@ -409,36 +381,21 @@
             if(player.shake > 0) ctx.translate((Math.random()-0.5)*player.shake, (Math.random()-0.5)*player.shake);
             ctx.translate(canvas.width/2 - player.x, canvas.height/2 - player.y);
             ctx.fillStyle = "#e3d5a1"; ctx.fillRect(0,0,worldWidth,worldHeight);
-            
             walls.forEach(w => { ctx.fillStyle = "#5d4037"; ctx.fillRect(w.x, w.y, w.w, w.h); });
-            smokes.forEach(sm => {
-                ctx.fillStyle = `rgba(200, 200, 200, ${Math.min(0.25, sm.life/200)})`;
-                ctx.beginPath(); ctx.arc(sm.x, sm.y, sm.r, 0, Math.PI*2); ctx.fill();
-            });
 
-            shells.forEach(s => { 
-                ctx.fillStyle = s.isWire ? "rgba(52, 73, 94, 0.3)" : s.color;
-                ctx.beginPath(); 
-                if(s.isWire) {
-                    ctx.fillRect(s.x - 150, s.y - 150, 300, 300); 
-                } else {
-                    ctx.arc(s.x, s.y, 6, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            });
+            if (player.c4) { ctx.fillStyle = "red"; ctx.fillRect(player.c4.x-10, player.c4.y-10, 20, 20); ctx.strokeRect(player.c4.x-10, player.c4.y-10, 20, 20); }
+
+            shells.forEach(s => { ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, Math.PI * 2); ctx.fill(); });
 
             const drawT = (t, col) => {
-                if(t.hide && t.id !== player.id) return;
                 const spec = tankSpecs[t.tankType || 'medium'], s = spec.size;
                 ctx.save(); ctx.translate(t.x, t.y);
-                if(t.eng) { ctx.fillStyle = "rgba(40,40,40,0.5)"; for(let i=0; i<2; i++) { ctx.beginPath(); ctx.arc((Math.random()-0.5)*30, (Math.random()-0.5)*30, 8, 0, Math.PI*2); ctx.fill(); } }
+                if (t.id === player.id && player.adsActive > 0) {
+                    ctx.strokeStyle = "rgba(0, 255, 255, 0.5)"; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, 120, 0, Math.PI*2); ctx.stroke();
+                }
                 ctx.save(); ctx.rotate(t.angle); ctx.fillStyle = col; ctx.fillRect(-22*s,-18*s,44*s,36*s); ctx.strokeRect(-22*s,-18*s,44*s,36*s); ctx.restore();
                 ctx.save(); ctx.rotate(t.tAngle || t.turretAngle); ctx.fillStyle = col; ctx.fillRect(-14*s,-14*s,28*s,28*s); ctx.strokeRect(-14*s,-14*s,28*s,28*s);
                 ctx.fillStyle="#333"; ctx.fillRect(0,-5*s,40*s,10*s); 
-                if(t.id === player.id && player.reloading > 0) {
-                    ctx.beginPath(); ctx.arc(55*s, 0, 8, -Math.PI/2, (-Math.PI/2) + (Math.PI*2 * (1 - player.reloading / player.maxReload)));
-                    ctx.strokeStyle = "#f1c40f"; ctx.lineWidth = 3; ctx.stroke();
-                }
                 ctx.restore();
                 ctx.fillStyle = "black"; ctx.font = `bold 14px Arial`; ctx.textAlign="center"; ctx.fillText(t.name, 0, -45);
                 ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(-25,-35,50,5);
@@ -449,7 +406,12 @@
             for (let id in players) if(Date.now()-players[id].lastUpdate < 3000) drawT(players[id], '#c0392b');
             if(player.hp > 0) drawT(player, tankSpecs[player.type].color);
 
-            // 爆破エフェクトの描画処理(explosions.forEach)を削除
+            explosions.forEach(b => { 
+                const grad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+                grad.addColorStop(0, `rgba(255, ${b.critical?150:200}, 50, ${b.life/30})`);
+                grad.addColorStop(1, `rgba(200, 50, 0, 0)`);
+                ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill(); 
+            });
             ctx.restore();
         }
 
