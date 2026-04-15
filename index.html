@@ -284,7 +284,6 @@
         function processDamage(power, hitX, hitY, ownerName, weaponName) {
             player.hp -= power; player.shake = Math.min(30, power);
             if (player.hp <= 0) {
-                createExplosion(player.x, player.y, 80, "SYSTEM", "FATAL", true);
                 socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'kill', victim:player.name, attacker:ownerName, weaponName:weaponName})}));
                 setTimeout(respawn, 2500);
             }
