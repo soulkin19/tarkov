@@ -275,9 +275,9 @@
         function createExplosion(x, y, power, ownerName, weaponName, isOwner) {
             const isCritical = power >= 25;
             explosions.push({ x, y, r: 0, life: isCritical ? 45 : 25, critical: isCritical });
+            if (Math.hypot(player.x - x, player.y - y) < 100) processDamage(power * 0.8, x, y, ownerName, weaponName);
             if (isOwner) {
                 socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'boom', x, y, power, ownerName, weaponName})}));
-                if (Math.hypot(player.x - x, player.y - y) < 100) processDamage(power * 0.8, x, y, ownerName, weaponName);
             }
         }
 
