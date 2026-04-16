@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tank Online: Tactical Pro Custom</title>
+    <title>Tank Online</title>
     <style>
         * { touch-action: none; -webkit-user-select: none; user-select: none; box-sizing: border-box; }
         body { margin: 0; overflow: hidden; background-color: #f0e68c; font-family: 'Arial Black', sans-serif; position: fixed; width: 100%; height: 100%; }
@@ -40,9 +40,9 @@
 
     <div id="setup">
         <h1 style="color:#f1c40f;">TANK ONLINE: TACTICAL</h1>
-        <p style="font-size: 11px; opacity: 0.7;">名前欄に「color:red名前」で色変更可能</p>
+        <p style="font-size: 11px; opacity: 0.7;">縦画面でも遊べます</p>
         
-        <div class="label">戦車タイプ選択 (サイズ共通)</div>
+        <div class="label">戦車タイプ選択</div>
         <div class="opt-group">
             <button id="type-heavy" class="btn sys-btn">重戦車<small>HP:150 / 高火力</small></button>
             <button id="type-medium" class="btn sys-btn selected">中戦車<small>HP:100 / 標準</small></button>
@@ -52,9 +52,9 @@
         <div class="label">セカンダリ武装 [Q]</div>
         <div class="opt-group">
             <button id="def-1" class="btn sys-btn selected">AT4<small>威力:30</small></button>
-            <button id="def-6" class="btn sys-btn">ADS防御システム<small>被弾を防ぎ、周囲に起動を知らせる</small></button>
+            <button id="def-6" class="btn sys-btn">ADS防御システム<small>被弾を防ぎ、効果的な戦術が可能に</small></button>
             <button id="def-7" class="btn sys-btn">リモートC4<small>設置・起爆トラップ</small></button>
-            <button id="def-4" class="btn sys-btn">近接誘導信管弾<small>強化済み検知ミサイル</small></button>
+            <button id="def-4" class="btn sys-btn">近接誘導信管弾<small>敵機検知ミサイル</small></button>
         </div>
 
         <button id="start-game" class="btn" style="background:#f1c40f; color:#000; width:300px; font-size:20px; margin-top:20px;">BATTLE START</button>
@@ -88,7 +88,6 @@
         const worldWidth = 2000, worldHeight = 1500;
         const HUB_NAME = "tank_v2_tactical_pro_2026"; 
 
-        // 全戦車のサイズを1.0に統一
         const tankSpecs = {
             'heavy':  { hp: 150, maxHp: 150, speed: 0.35, powerMult: 1.8, reloadMult: 1.5, size: 1.0, color: '#1a2a1a' },
             'medium': { hp: 100, maxHp: 100, speed: 0.5,  powerMult: 1.0, reloadMult: 1.0, size: 1.0, color: '#2d5a27' },
@@ -96,14 +95,14 @@
         };
 
         const ammoTypes = {
-            '1': { name: "HE", power: 8, reload: 20, speed: 11, color: "#e67e22", isExplosive: true },
+            '1': { name: "HE", power: 12, reload: 20, speed: 11, color: "#e67e22", isExplosive: true },
             '2': { name: "AP", power: 22, reload: 25, bounce: true, speed: 13, color: "#34495e" },
-            '3': { name: "APFSDS", power: 35, reload: 55, speed: 55, color: "#2c3e50" },
-            '4': { name: "AE", power: 6, reload: 18, bounce: true, speed: 8, color: "#f1c40f" },
-            '5': { name: "HESH", power: 15, reload: 35, speed: 10, color: "#9b59b6", isExplosive: true, bigExplosion: true },
-            '6': { name: "FS", power: 4, reload: 30, speed: 15, color: "#7f8c8d", isFlechette: true },
+            '3': { name: "APFSDS", power: 35, reload: 55, speed: 45, color: "#2c3e50" },
+            '4': { name: "AE", power: 8, reload: 18, bounce: true, speed: 8, color: "#f1c40f" },
+            '5': { name: "HESH", power: 20, reload: 35, speed: 10, color: "#9b59b6", isExplosive: true, bigExplosion: true },
+            '6': { name: "FS", power: 4, reload: 35, speed: 15, color: "#7f8c8d", isFlechette: true },
             '7': { name: "APHE", power: 25, reload: 35, speed: 18, color: "#e74c3c", isExplosive: true },
-            '9': { name: "HEAT", power: 20, reload: 30, speed: 10, color: "#d35400", isExplosive: true, isCluster: true }
+            '8': { name: "HEAT", power: 20, reload: 25, speed: 10, color: "#d35400", isExplosive: true, isCluster: true }
         };
 
         const player = {
@@ -185,10 +184,9 @@
         ['type-heavy','type-medium','type-light','def-1','def-4','def-6','def-7'].forEach(setupSelect);
 
         document.getElementById('start-game').onclick = () => {
-            let input = prompt("名前を入力 (例: color:bluePlayer1)", "T34");
+            let input = prompt("名前を入力 (例: takuya931)", "T34");
             let name = input || "Guest";
             
-            // 色変更コマンドの解析: color:(色)(名前)
             const colorMatch = name.match(/^color:([a-zA-Z]+)(.*)/);
             if (colorMatch) {
                 player.customColor = colorMatch[1];
@@ -231,11 +229,11 @@
             const tAngle = player.turretAngle;
 
             if(player.defense === 1) { // AT4
-                const s = { x: player.x, y: player.y, vx: Math.cos(tAngle)*6, vy: Math.sin(tAngle)*6, power: 30, color: "#c0392b", isMissile: true, isExplosive: true, owner: player.id, ownerName: player.name, weaponName: "AT4", life: 500 };
+                const s = { x: player.x, y: player.y, vx: Math.cos(tAngle)*6, vy: Math.sin(tAngle)*6, power: 40, color: "#c0392b", isMissile: true, isExplosive: true, owner: player.id, ownerName: player.name, weaponName: "AT4", life: 500 };
                 shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
-                player.defenseCD = 500;
+                player.defenseCD = 240;
             } else if(player.defense === 6) { // ADS
-                player.adsActive = 240; player.defenseCD = 700;
+                player.adsActive = 300; player.defenseCD = 700;
             } else if(player.defense === 7) { // C4
                 if (!player.c4) {
                     player.c4 = { x: player.x, y: player.y };
@@ -245,7 +243,7 @@
                     player.c4 = null; player.defenseCD = 400;
                 }
             } else if(player.defense === 4) { // 近接信管
-                const s = { x: player.x, y: player.y, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 28, color: "#2ecc71", isProxy: true, proxDist: 110, isExplosive: true, owner: player.id, ownerName: player.name, weaponName: "近接信管弾", life: 180 };
+                const s = { x: player.x, y: player.y, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 30, color: "#2ecc71", isProxy: true, proxDist: 110, isExplosive: true, owner: player.id, ownerName: player.name, weaponName: "近接信管弾", life: 180 };
                 shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
                 player.defenseCD = 350;
             }
