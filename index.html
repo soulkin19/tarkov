@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tank Online</title>
+    <title>Tank Online: Team Tactical</title>
     <style>
         * { touch-action: none; -webkit-user-select: none; user-select: none; box-sizing: border-box; }
         body { margin: 0; overflow: hidden; background-color: #f0e68c; font-family: 'Arial Black', sans-serif; position: fixed; width: 100%; height: 100%; }
@@ -23,6 +23,7 @@
         #defense-bar { width: 0%; height: 100%; background: #2980b9; }
 
         #killLog { position: absolute; top: 10px; right: 10px; color: #c0392b; font-size: 14px; text-shadow: 1px 1px 0 #fff; text-align: right; width: auto; font-weight: bold; pointer-events: none; z-index: 60; }
+        #teamIndicator { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: #f1c40f; padding: 5px 15px; border-radius: 20px; font-size: 12px; z-index: 50; }
 
         #mobile-controls { display: none; position: absolute; inset: 0; pointer-events: none; z-index: 20; }
         #stick-area { position: absolute; bottom: 40px; left: 40px; width: 150px; height: 150px; background: rgba(255,255,255,0.1); border-radius: 50%; pointer-events: auto; border: 2px solid rgba(255,255,255,0.2); }
@@ -38,9 +39,11 @@
 </head>
 <body>
 
+    <div id="teamIndicator">TEAM: LOADING...</div>
+
     <div id="setup">
-        <h1 style="color:#f1c40f;">TANK ONLINE: TACTICAL</h1>
-        <p style="font-size: 11px; opacity: 0.7;">縦画面でも遊べます</p>
+        <h1 style="color:#f1c40f;">TANK ONLINE: TEAM TACTICAL</h1>
+        <p id="url-hint" style="font-size: 11px; color: #aaa;">URLの末尾に #red などでチーム分け可能</p>
         
         <div class="label">戦車タイプ選択</div>
         <div class="opt-group">
@@ -51,10 +54,10 @@
 
         <div class="label">セカンダリ武装 [Q]</div>
         <div class="opt-group">
-            <button id="def-1" class="btn sys-btn selected">AT4<small>威力:30</small></button>
-            <button id="def-6" class="btn sys-btn">ADS防御システム<small>被弾を防ぎ、効果的な戦術が可能に</small></button>
-            <button id="def-7" class="btn sys-btn">リモートC4<small>設置・起爆トラップ</small></button>
-            <button id="def-4" class="btn sys-btn">近接誘導信管弾<small>敵機検知ミサイル</small></button>
+            <button id="def-8" class="btn sys-btn selected">空爆要請<small>広範囲に連続爆撃</small></button>
+            <button id="def-6" class="btn sys-btn">ADS防御システム<small>被弾を無効化</small></button>
+            <button id="def-7" class="btn sys-btn">リモートC4<small>設置・起爆</small></button>
+            <button id="def-4" class="btn sys-btn">近接誘導信管弾<small>敵を自動検知</small></button>
         </div>
 
         <button id="start-game" class="btn" style="background:#f1c40f; color:#000; width:300px; font-size:20px; margin-top:20px;">BATTLE START</button>
@@ -86,7 +89,11 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const worldWidth = 2000, worldHeight = 1500;
-        const HUB_NAME = "tank_v2_tactical_pro_2026"; 
+        const HUB_NAME = "tank_v2_team_tactical_2026"; 
+
+        // チーム取得
+        const currentTeam = location.hash ? decodeURIComponent(location.hash.substring(1)) : "Free";
+        document.getElementById('teamIndicator').innerText = `TEAM: ${currentTeam.toUpperCase()}`;
 
         const tankSpecs = {
             'heavy':  { hp: 150, maxHp: 150, speed: 0.35, powerMult: 1.8, reloadMult: 1.5, size: 1.0, color: '#1a2a1a' },
@@ -107,11 +114,12 @@
 
         const player = {
             id: "P-" + Math.random().toString(36).substr(2, 5),
+            team: currentTeam,
             type: 'medium', x: 0, y: 0, angle: 0, turretAngle: 0, vx: 0, vy: 0, hp: 100, maxHp: 100,
             reloading: 0, maxReload: 0, currentAmmo: '1', name: "Guest", customColor: null,
             gadgetCD: 0, repairPool: 0,
-            defense: 1, defenseCD: 0, adsActive: 0, c4: null,
-            engineBroken: 0, shake: 0
+            defense: 8, defenseCD: 0, adsActive: 0, c4: null,
+            shake: 0
         };
 
         const players = {}, shells = [], explosions = [], keys = {};
@@ -135,6 +143,7 @@
             ammoList.appendChild(btn);
         });
 
+        // モバイル操作
         let stickData = { active: false, x: 0, y: 0 };
         const stickEl = document.getElementById('stick'), stickArea = document.getElementById('stick-area');
         stickArea.addEventListener('touchstart', (e) => { stickData.active = true; handleStick(e); });
@@ -166,9 +175,8 @@
                 player.y = Math.random() * (worldHeight - 200) + 100;
                 if (!isPointInWall(player.x, player.y, 45)) safe = true;
             }
-            const spec = tankSpecs[player.type];
-            player.hp = spec.hp; player.maxHp = spec.maxHp;
-            player.vx = 0; player.vy = 0; player.engineBroken = 0; player.repairPool = 0; player.c4 = null;
+            player.hp = tankSpecs[player.type].hp;
+            player.vx = 0; player.vy = 0; player.repairPool = 0; player.c4 = null;
         }
 
         function setupSelect(id) {
@@ -181,20 +189,14 @@
                 document.getElementById(id).classList.add('selected');
             };
         }
-        ['type-heavy','type-medium','type-light','def-1','def-4','def-6','def-7'].forEach(setupSelect);
+        ['type-heavy','type-medium','type-light','def-8','def-4','def-6','def-7'].forEach(setupSelect);
 
         document.getElementById('start-game').onclick = () => {
-            let input = prompt("名前を入力 (例: takuya931)", "T34");
+            let input = prompt("名前を入力", "TankPlayer");
             let name = input || "Guest";
-            
             const colorMatch = name.match(/^color:([a-zA-Z]+)(.*)/);
-            if (colorMatch) {
-                player.customColor = colorMatch[1];
-                player.name = colorMatch[2] || "Player";
-            } else {
-                player.name = name;
-                player.customColor = null;
-            }
+            if (colorMatch) { player.customColor = colorMatch[1]; player.name = colorMatch[2] || "Player"; } 
+            else { player.name = name; player.customColor = null; }
 
             document.getElementById('setup').style.display = 'none';
             if('ontouchstart' in window) { isMobileMode = true; document.getElementById('mobile-controls').style.display = 'block'; }
@@ -213,7 +215,7 @@
                 const data = JSON.parse(raw.msg);
                 if (data.type === 'move') players[data.id] = {...data, lastUpdate: Date.now()};
                 if (data.type === 'fire') shells.push(data.shell);
-                if (data.type === 'boom') createExplosion(data.x, data.y, data.power, data.ownerName, data.weaponName, false);
+                if (data.type === 'boom') createExplosion(data.x, data.y, data.power, data.ownerName, data.weaponName, data.ownerTeam, false);
                 if (data.type === 'kill') showKillLog(data.victim, data.attacker, data.weaponName);
                 if (data.type === 'c4_placed') { if(players[data.ownerId]) players[data.ownerId].c4 = { x: data.x, y: data.y }; }
             };
@@ -228,10 +230,10 @@
             if(player.defenseCD > 0) return;
             const tAngle = player.turretAngle;
 
-            if(player.defense === 1) { // AT4
-                const s = { x: player.x, y: player.y, vx: Math.cos(tAngle)*6, vy: Math.sin(tAngle)*6, power: 40, color: "#c0392b", isMissile: true, isExplosive: true, owner: player.id, ownerName: player.name, weaponName: "AT4", life: 500 };
+            if(player.defense === 8) { // 空爆要請
+                const s = { x: player.x, y: player.y, vx: Math.cos(tAngle)*12, vy: Math.sin(tAngle)*12, power: 0, color: "red", isAirstrikeMarker: true, owner: player.id, ownerName: player.name, ownerTeam: player.team, weaponName: "空爆要請", life: 100 };
                 shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
-                player.defenseCD = 240;
+                player.defenseCD = 800;
             } else if(player.defense === 6) { // ADS
                 player.adsActive = 300; player.defenseCD = 700;
             } else if(player.defense === 7) { // C4
@@ -239,11 +241,11 @@
                     player.c4 = { x: player.x, y: player.y };
                     socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'c4_placed', x: player.x, y: player.y, ownerId: player.id})}));
                 } else {
-                    createExplosion(player.c4.x, player.c4.y, 60, player.name, "リモートC4", true);
+                    createExplosion(player.c4.x, player.c4.y, 60, player.name, "リモートC4", player.team, true);
                     player.c4 = null; player.defenseCD = 400;
                 }
             } else if(player.defense === 4) { // 近接信管
-                const s = { x: player.x, y: player.y, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 30, color: "#2ecc71", isProxy: true, proxDist: 110, isExplosive: true, owner: player.id, ownerName: player.name, weaponName: "近接信管弾", life: 180 };
+                const s = { x: player.x, y: player.y, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 30, color: "#2ecc71", isProxy: true, proxDist: 110, isExplosive: true, owner: player.id, ownerName: player.name, ownerTeam: player.team, weaponName: "近接信管弾", life: 180 };
                 shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
                 player.defenseCD = 350;
             }
@@ -252,18 +254,18 @@
         function fireShell(ammoKey) {
             const spec = tankSpecs[player.type];
             const a = ammoTypes[ammoKey];
+            const ang = player.turretAngle;
             if (a.isFlechette) {
                 for(let i=0; i<12; i++) {
-                    const ang = player.turretAngle + (Math.random()-0.5)*0.25;
-                    const s = { x: player.x + Math.cos(ang)*45, y: player.y + Math.sin(ang)*45, vx: Math.cos(ang)*a.speed*(0.9+Math.random()*0.2), vy: Math.sin(ang)*a.speed*(0.9+Math.random()*0.2), power: a.power * spec.powerMult, color: a.color, owner: player.id, ownerName: player.name, weaponName: a.name, life: 40 };
+                    const fang = ang + (Math.random()-0.5)*0.25;
+                    const s = { x: player.x + Math.cos(fang)*45, y: player.y + Math.sin(fang)*45, vx: Math.cos(fang)*a.speed*(0.9+Math.random()*0.2), vy: Math.sin(fang)*a.speed*(0.9+Math.random()*0.2), power: a.power * spec.powerMult, color: a.color, owner: player.id, ownerName: player.name, ownerTeam: player.team, weaponName: a.name, life: 40 };
                     shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
                 }
             } else {
-                const s = { x: player.x + Math.cos(player.turretAngle)*45, y: player.y + Math.sin(player.turretAngle)*45, vx: Math.cos(player.turretAngle)*a.speed, vy: Math.sin(player.turretAngle)*a.speed, power: a.power * spec.powerMult, bounce: a.bounce, color: a.color, isExplosive: a.isExplosive, owner: player.id, ownerName: player.name, weaponName: a.name, life: 200, bCount: 3, bigExp: a.bigExplosion };
+                const s = { x: player.x + Math.cos(ang)*45, y: player.y + Math.sin(ang)*45, vx: Math.cos(ang)*a.speed, vy: Math.sin(ang)*a.speed, power: a.power * spec.powerMult, bounce: a.bounce, color: a.color, isExplosive: a.isExplosive, owner: player.id, ownerName: player.name, ownerTeam: player.team, weaponName: a.name, life: 200, bCount: 3, bigExp: a.bigExplosion };
                 shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
             }
-            player.vx -= Math.cos(player.turretAngle) * (a.power * 0.1);
-            player.vy -= Math.sin(player.turretAngle) * (a.power * 0.1);
+            player.vx -= Math.cos(ang) * (a.power * 0.1); player.vy -= Math.sin(ang) * (a.power * 0.1);
         }
 
         window.onkeydown = (e) => { 
@@ -274,15 +276,18 @@
         };
         window.onkeyup = (e) => keys[e.key] = false;
 
-        function createExplosion(x, y, power, ownerName, weaponName, isOwner) {
+        function createExplosion(x, y, power, ownerName, weaponName, ownerTeam, isOwner) {
             const isCritical = power >= 25;
             explosions.push({ x, y, r: 0, life: isCritical ? 45 : 25, critical: isCritical });
-            if (Math.hypot(player.x - x, player.y - y) < (isCritical ? 130 : 90)) processDamage(power * 0.8, x, y, ownerName, weaponName);
-            if (isOwner) socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'boom', x, y, power, ownerName, weaponName})}));
+            if (Math.hypot(player.x - x, player.y - y) < (isCritical ? 130 : 90)) processDamage(power * 0.8, x, y, ownerName, weaponName, ownerTeam);
+            if (isOwner) socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'boom', x, y, power, ownerName, weaponName, ownerTeam})}));
         }
 
-        function processDamage(power, hitX, hitY, ownerName, weaponName) {
+        function processDamage(power, hitX, hitY, ownerName, weaponName, ownerTeam) {
             if(player.hp <= 0) return;
+            // チーム判定 (Freeチーム以外で同じなら無効)
+            if(player.team !== "Free" && player.team === ownerTeam) return;
+
             player.hp -= power; player.shake = Math.min(30, power);
             if (player.hp <= 0) {
                 socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'kill', victim:player.name, attacker:ownerName, weaponName:weaponName})}));
@@ -319,26 +324,39 @@
                 const s = shells[i];
                 if (s.isProxy) {
                     let triggered = false;
-                    for (let id in players) { if (s.owner !== id && Math.hypot(players[id].x - s.x, players[id].y - s.y) < s.proxDist) triggered = true; }
-                    if (s.owner !== player.id && Math.hypot(player.x - s.x, player.y - s.y) < s.proxDist) triggered = true;
-                    if (triggered) { createExplosion(s.x, s.y, s.power, s.ownerName, s.weaponName, s.owner === player.id); shells.splice(i,1); continue; }
+                    for (let id in players) { 
+                        if (s.owner !== id && (players[id].team === "Free" || players[id].team !== s.ownerTeam) && Math.hypot(players[id].x - s.x, players[id].y - s.y) < s.proxDist) triggered = true; 
+                    }
+                    if (s.owner !== player.id && (player.team === "Free" || player.team !== s.ownerTeam) && Math.hypot(player.x - s.x, player.y - s.y) < s.proxDist) triggered = true;
+                    if (triggered) { createExplosion(s.x, s.y, s.power, s.ownerName, s.weaponName, s.ownerTeam, s.owner === player.id); shells.splice(i,1); continue; }
                 }
                 if (player.adsActive > 0 && s.owner !== player.id && Math.hypot(player.x - s.x, player.y - s.y) < 120) {
                     explosions.push({ x: s.x, y: s.y, r: 0, life: 10, critical: false }); shells.splice(i,1); continue;
                 }
                 s.x += s.vx; s.y += s.vy; s.life--;
+                
                 const hitW = walls.find(w => s.x > w.x && s.x < w.x + w.w && s.y > w.y && s.y < w.y + w.h);
                 if (hitW) {
                     if (s.bounce && s.bCount-- > 0) { if (s.x - s.vx <= hitW.x || s.x - s.vx >= hitW.x + hitW.w) s.vx *= -1; else s.vy *= -1; }
                     else s.life = 0;
                 }
+                
                 if (s.owner !== player.id && Math.hypot(player.x-s.x, player.y-s.y) < 32) {
-                    if (s.isExplosive) createExplosion(s.x, s.y, s.power, s.ownerName, s.weaponName, true);
-                    else processDamage(s.power, s.x, s.y, s.ownerName, s.weaponName);
+                    if (s.isExplosive) createExplosion(s.x, s.y, s.power, s.ownerName, s.weaponName, s.ownerTeam, true);
+                    else processDamage(s.power, s.x, s.y, s.ownerName, s.weaponName, s.ownerTeam);
                     shells.splice(i,1); continue;
                 }
+                
                 if (s.life <= 0) {
-                    if (s.isExplosive) createExplosion(s.x, s.y, s.bigExp ? 45 : s.power, s.ownerName, s.weaponName, s.owner === player.id);
+                    if (s.isAirstrikeMarker) {
+                        for(let j=0; j<10; j++) {
+                            setTimeout(() => {
+                                createExplosion(s.x + (Math.random()-0.5)*250, s.y + (Math.random()-0.5)*250, 35, s.ownerName, "空爆", s.ownerTeam, s.owner === player.id);
+                            }, j * 150);
+                        }
+                    } else if (s.isExplosive) {
+                        createExplosion(s.x, s.y, s.bigExp ? 45 : s.power, s.ownerName, s.weaponName, s.ownerTeam, s.owner === player.id);
+                    }
                     shells.splice(i,1);
                 }
             }
@@ -352,14 +370,14 @@
             if (socket?.readyState === 1) {
                 socket.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({
                     type: 'move', id: player.id, x: player.x, y: player.y, angle: player.angle, tAngle: player.turretAngle, 
-                    hp: player.hp, name: player.name, tankType: player.type, adsActive: player.adsActive,
-                    customColor: player.customColor // カスタムカラーを送信
+                    hp: player.hp, name: player.name, team: player.team, tankType: player.type, adsActive: player.adsActive,
+                    customColor: player.customColor
                 })}));
             }
             document.getElementById('hpDisplay').innerText = `HP: ${Math.ceil(player.hp)}`;
             document.getElementById('weaponDisplay').innerText = ammoTypes[player.currentAmmo].name;
             document.getElementById('gadget-bar').style.width = (100 - (player.gadgetCD/600)*100) + "%";
-            document.getElementById('defense-bar').style.width = (100 - (player.defenseCD/500)*100) + "%";
+            document.getElementById('defense-bar').style.width = (100 - (player.defenseCD/800)*100) + "%";
         }
 
         function draw() {
@@ -371,11 +389,11 @@
             walls.forEach(w => { ctx.fillStyle = "#5d4037"; ctx.fillRect(w.x, w.y, w.w, w.h); });
 
             if (player.c4) { ctx.fillStyle = "red"; ctx.fillRect(player.c4.x-10, player.c4.y-10, 20, 20); ctx.strokeRect(player.c4.x-10, player.c4.y-10, 20, 20); }
-            shells.forEach(s => { ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, Math.PI * 2); ctx.fill(); });
+            shells.forEach(s => { ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(s.x, s.y, s.isAirstrikeMarker?10:6, 0, Math.PI * 2); ctx.fill(); });
 
             const drawT = (t, defaultCol) => {
                 const spec = tankSpecs[t.tankType || 'medium'], s = spec.size;
-                const col = t.customColor || defaultCol; // カスタムカラーがあれば優先
+                const col = t.customColor || defaultCol;
                 ctx.save(); ctx.translate(t.x, t.y);
                 if (t.adsActive > 0) {
                     ctx.strokeStyle = "rgba(0, 255, 255, 0.6)"; ctx.lineWidth = 3;
@@ -385,7 +403,12 @@
                 ctx.save(); ctx.rotate(t.tAngle || t.turretAngle); ctx.fillStyle = col; ctx.fillRect(-14*s,-14*s,28*s,28*s); ctx.strokeRect(-14*s,-14*s,28*s,28*s);
                 ctx.fillStyle="#333"; ctx.fillRect(0,-5*s,40*s,10*s); 
                 ctx.restore();
-                ctx.fillStyle = "black"; ctx.font = `bold 14px Arial`; ctx.textAlign="center"; ctx.fillText(t.name, 0, -45);
+                
+                // 名前とチーム表示
+                ctx.fillStyle = "black"; ctx.font = `bold 14px Arial`; ctx.textAlign="center"; 
+                const displayName = (t.team && t.team !== "Free") ? `[${t.team}] ${t.name}` : t.name;
+                ctx.fillText(displayName, 0, -45);
+                
                 ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(-25,-35,50,5);
                 ctx.fillStyle = (t.hp/spec.maxHp) > 0.3 ? "#2ecc71" : "#e74c3c"; ctx.fillRect(-25,-35,50*(t.hp/spec.maxHp),5);
                 ctx.restore();
