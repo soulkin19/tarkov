@@ -1,430 +1,539 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tank Online: Tactical Team</title>
-    <style>
-        * { touch-action: none; -webkit-user-select: none; user-select: none; box-sizing: border-box; }
-        body { margin: 0; overflow: hidden; background-color: #f0e68c; font-family: 'Arial Black', sans-serif; position: fixed; width: 100%; height: 100%; }
-        canvas { display: block; background-color: #eddfb3; }
-        
-        #setup { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: white; padding: 20px; text-align: center; overflow-y: auto; }
-        .btn { padding: 12px 20px; margin: 8px; font-size: 14px; cursor: pointer; border-radius: 8px; border: none; font-weight: bold; transition: 0.2s; }
-        .selected { border: 4px solid #f1c40f !important; box-shadow: 0 0 15px #f1c40f; }
-        .opt-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center; }
-        .sys-btn { background: #2c3e50; color: white; width: 160px; text-align: left; }
-        .sys-btn small { font-weight: normal; font-size: 10px; display: block; opacity: 0.8; }
-        .label { font-size: 12px; color: #f1c40f; margin-bottom: 5px; text-transform: uppercase; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tank Online: Tactical Team</title>
+    <style>
+        * { touch-action: none; -webkit-user-select: none; user-select: none; box-sizing: border-box; }
+        body { 
+            margin: 0; overflow: hidden; background-color: #f0e68c; 
+            font-family: 'Arial Black', sans-serif; 
+            position: fixed; width: 100%; height: 100%; 
+        }
+        canvas { display: block; background-color: #eddfb3; }
 
-        #ui { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.85); padding: 10px; border-radius: 8px; border: 2px solid #555; min-width: 170px; pointer-events: none; z-index: 10; }
-        .bar-bg { width: 100%; height: 6px; background: #ccc; margin-top: 4px; border-radius: 3px; overflow: hidden; }
-        #gadget-bar { width: 0%; height: 100%; background: #8e44ad; }
-        #defense-bar { width: 0%; height: 100%; background: #2980b9; }
+        #setup { 
+            position: absolute; inset: 0; background: rgba(0,0,0,0.92); 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            z-index: 100; color: white; padding: 20px; text-align: center; overflow-y: auto; 
+        }
+        .btn { 
+            padding: 14px 24px; margin: 8px; font-size: 15px; cursor: pointer; 
+            border-radius: 10px; border: none; font-weight: bold; transition: 0.2s; 
+        }
+        .selected { border: 4px solid #f1c40f !important; box-shadow: 0 0 20px #f1c40f; }
+        .opt-group { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; }
+        .sys-btn { background: #2c3e50; color: white; width: 170px; text-align: left; }
+        .sys-btn small { font-weight: normal; font-size: 11px; display: block; opacity: 0.85; }
+        .label { font-size: 13px; color: #f1c40f; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
 
-        #team-indicator { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); color: #f1c40f; padding: 5px 15px; border-radius: 20px; font-size: 14px; z-index: 50; border: 1px solid #f1c40f; }
-        #killLog { position: absolute; top: 10px; right: 10px; color: #c0392b; font-size: 14px; text-shadow: 1px 1px 0 #fff; text-align: right; width: auto; font-weight: bold; pointer-events: none; z-index: 60; }
+        #ui { 
+            position: absolute; top: 12px; left: 12px; background: rgba(255,255,255,0.9); 
+            padding: 12px 16px; border-radius: 10px; border: 3px solid #333; 
+            min-width: 190px; pointer-events: none; z-index: 100; 
+        }
+        .bar-bg { width: 100%; height: 8px; background: #ccc; margin-top: 6px; border-radius: 4px; overflow: hidden; }
+        #gadget-bar { height: 100%; background: #8e44ad; transition: width 0.2s; }
+        #defense-bar { height: 100%; background: #2980b9; transition: width 0.2s; }
 
-        #mobile-controls { display: none; position: absolute; inset: 0; pointer-events: none; z-index: 20; }
-        #stick-area { position: absolute; bottom: 40px; left: 40px; width: 150px; height: 150px; background: rgba(255,255,255,0.1); border-radius: 50%; pointer-events: auto; border: 2px solid rgba(255,255,255,0.2); }
-        #stick { position: absolute; top: 50%; left: 50%; width: 60px; height: 60px; background: rgba(255,255,255,0.6); border-radius: 50%; transform: translate(-50%, -50%); }
-        .action-btn { position: absolute; width: 70px; height: 70px; background: rgba(0,0,0,0.5); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: auto; font-size: 12px; border: 2px solid #fff; }
-        #btn-fire { bottom: 130px; right: 40px; width: 90px; height: 90px; background: rgba(192, 57, 43, 0.7); font-size: 18px; }
-        #btn-gadget { bottom: 50px; right: 140px; background: rgba(142, 68, 173, 0.7); }
-        #btn-def { bottom: 50px; right: 40px; background: rgba(41, 128, 185, 0.7); }
-        
-        .ammo-selector { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; }
-        .ammo-btn { width: 45px; height: 45px; background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #f1c40f; border-radius: 8px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-    </style>
+        #team-indicator { 
+            position: absolute; top: 12px; left: 50%; transform: translateX(-50%); 
+            background: rgba(0,0,0,0.7); color: #f1c40f; padding: 6px 20px; 
+            border-radius: 30px; font-size: 15px; z-index: 200; border: 2px solid #f1c40f; 
+        }
+        #killLog { 
+            position: absolute; top: 70px; right: 15px; color: #c0392b; font-size: 15px; 
+            text-shadow: 1px 1px 2px #fff; text-align: right; font-weight: bold; 
+            pointer-events: none; z-index: 210; line-height: 1.3; 
+        }
+
+        #mobile-controls { 
+            display: none; position: absolute; inset: 0; pointer-events: none; z-index: 50; 
+        }
+        #stick-area { 
+            position: absolute; bottom: 30px; left: 30px; width: 160px; height: 160px; 
+            background: rgba(255,255,255,0.15); border-radius: 50%; 
+            pointer-events: auto; border: 3px solid rgba(255,255,255,0.3); 
+        }
+        #stick { 
+            position: absolute; top: 50%; left: 50%; width: 65px; height: 65px; 
+            background: rgba(255,255,255,0.7); border-radius: 50%; transform: translate(-50%, -50%); 
+        }
+        .action-btn { 
+            position: absolute; width: 75px; height: 75px; background: rgba(0,0,0,0.6); 
+            color: white; border-radius: 50%; display: flex; align-items: center; 
+            justify-content: center; pointer-events: auto; font-size: 13px; font-weight: bold; 
+            border: 3px solid #fff; 
+        }
+        #btn-fire { bottom: 140px; right: 30px; width: 95px; height: 95px; background: rgba(192,57,43,0.85); font-size: 20px; }
+        #btn-gadget { bottom: 40px; right: 150px; background: rgba(142,68,173,0.85); }
+        #btn-def { bottom: 40px; right: 40px; background: rgba(41,128,185,0.85); }
+
+        .ammo-selector { 
+            position: absolute; right: 20px; top: 50%; transform: translateY(-50%); 
+            display: flex; flex-direction: column; gap: 8px; pointer-events: auto; z-index: 60; 
+        }
+        .ammo-btn { 
+            width: 48px; height: 48px; background: rgba(0,0,0,0.7); color: #fff; 
+            border: 3px solid #f1c40f; border-radius: 10px; font-weight: bold; 
+            display: flex; align-items: center; justify-content: center; font-size: 18px; 
+        }
+    </style>
 </head>
 <body>
 
-    <div id="setup">
-        <h1 style="color:#f1c40f;">TANK ONLINE: TEAM</h1>
-        <p id="team-info" style="font-size: 14px; color: #2ecc71;">URL末尾に #TeamA などでチーム参加</p>
-        
-        <div class="label">戦車タイプ選択</div>
-        <div class="opt-group">
-            <button id="type-heavy" class="btn sys-btn">重戦車<small>HP:150 / 高火力</small></button>
-            <button id="type-medium" class="btn sys-btn selected">中戦車<small>HP:100 / 標準</small></button>
-            <button id="type-light" class="btn sys-btn">軽戦車<small>HP:60 / 高速</small></button>
-        </div>
+    <div id="setup">
+        <h1 style="color:#f1c40f; margin-bottom:10px;">TANK ONLINE: TEAM</h1>
+        <p id="team-info" style="font-size: 15px; color: #2ecc71;">URL末尾に #TeamA などでチーム参加</p>
+        
+        <div class="label">戦車タイプ選択</div>
+        <div class="opt-group">
+            <button id="type-heavy" class="btn sys-btn">重戦車<small>HP:150 / 高火力</small></button>
+            <button id="type-medium" class="btn sys-btn selected">中戦車<small>HP:100 / 標準</small></button>
+            <button id="type-light" class="btn sys-btn">軽戦車<small>HP:60 / 高速</small></button>
+        </div>
 
-        <div class="label">セカンダリ武装 [Q]</div>
-        <div class="opt-group">
-            <button id="def-1" class="btn sys-btn selected">AT4<small>誘導ミサイル</small></button>
-            <button id="def-6" class="btn sys-btn">ADS防御<small>被弾無効化</small></button>
-            <button id="def-7" class="btn sys-btn">リモートC4<small>設置・起爆</small></button>
-            <button id="def-4" class="btn sys-btn">近接信管弾<small>自動爆発</small></button>
-        </div>
+        <div class="label">セカンダリ武装 [Q]</div>
+        <div class="opt-group">
+            <button id="def-1" class="btn sys-btn selected">AT4<small>誘導ミサイル</small></button>
+            <button id="def-6" class="btn sys-btn">ADS防御<small>被弾無効化</small></button>
+            <button id="def-7" class="btn sys-btn">リモートC4<small>設置・起爆</small></button>
+            <button id="def-4" class="btn sys-btn">近接信管弾<small>自動爆発</small></button>
+        </div>
 
-        <button id="start-game" class="btn" style="background:#f1c40f; color:#000; width:300px; font-size:20px; margin-top:20px;">BATTLE START</button>
-    </div>
+        <button id="start-game" class="btn" style="background:#f1c40f; color:#000; width:320px; font-size:22px; margin-top:30px;">BATTLE START</button>
+    </div>
 
-    <div id="team-indicator">TEAM: <span id="team-name">Free</span></div>
+    <div id="team-indicator">TEAM: <span id="team-name">Free</span></div>
 
-    <div id="ui">
-        <div id="hpDisplay" style="font-size:18px; font-weight:bold;">HP: 100</div>
-        <div id="weaponDisplay" style="font-size:13px;">HE</div>
-        <div style="font-size:11px; margin-top:5px;">修理[R]</div>
-        <div class="bar-bg"><div id="gadget-bar"></div></div>
-        <div style="font-size:11px; margin-top:5px;">武装 [Q]</div>
-        <div class="bar-bg"><div id="defense-bar"></div></div>
-    </div>
+    <div id="ui">
+        <div id="hpDisplay" style="font-size:19px; font-weight:bold;">HP: 100</div>
+        <div id="weaponDisplay" style="font-size:14px;">HE</div>
+        <div style="font-size:12px; margin-top:6px;">修理 [R]</div>
+        <div class="bar-bg"><div id="gadget-bar"></div></div>
+        <div style="font-size:12px; margin-top:6px;">武装 [Q]</div>
+        <div class="bar-bg"><div id="defense-bar"></div></div>
+    </div>
 
-    <div id="killLog"></div>
+    <div id="killLog"></div>
 
-    <div id="mobile-controls">
-        <div id="stick-area"><div id="stick"></div></div>
-        <div id="btn-fire" class="action-btn">FIRE</div>
-        <div id="btn-gadget" class="action-btn">R</div>
-        <div id="btn-def" class="action-btn">Q</div>
-        <div class="ammo-selector" id="ammo-list"></div>
-    </div>
+    <div id="mobile-controls">
+        <div id="stick-area"><div id="stick"></div></div>
+        <div id="btn-fire" class="action-btn">FIRE</div>
+        <div id="btn-gadget" class="action-btn">R</div>
+        <div id="btn-def" class="action-btn">Q</div>
+        <div class="ammo-selector" id="ammo-list"></div>
+    </div>
 
-    <canvas id="gameCanvas"></canvas>
+    <canvas id="gameCanvas"></canvas>
 
-    <script>
-    (function() {
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const worldWidth = 2000, worldHeight = 1500;
-        const HUB_NAME = "tank_v2_team_final_2026"; 
+    <script>
+    (function() {
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const worldWidth = 2000, worldHeight = 1500;
+        const HUB_NAME = "tank_v2_team_final_2026";
 
-        const teamName = window.location.hash.substring(1) || "Free";
-        document.getElementById('team-name').innerText = teamName;
+        const teamName = window.location.hash.substring(1) || "Free";
+        document.getElementById('team-name').innerText = teamName;
 
-        const tankSpecs = {
-            'heavy':  { hp: 150, maxHp: 150, speed: 0.35, powerMult: 1.8, reloadMult: 1.5, size: 1.0, color: '#1a2a1a' },
-            'medium': { hp: 100, maxHp: 100, speed: 0.5,  powerMult: 1.0, reloadMult: 1.0, size: 1.0, color: '#2d5a27' },
-            'light':  { hp: 60,  maxHp: 60,  speed: 1.0,  powerMult: 0.5, reloadMult: 0.7, size: 1.0, color: '#4a7c44' }
-        };
+        const tankSpecs = {
+            'heavy':  { hp: 150, maxHp: 150, speed: 0.35, powerMult: 1.8, reloadMult: 1.5, size: 1.0, color: '#1a2a1a' },
+            'medium': { hp: 100, maxHp: 100, speed: 0.5,  powerMult: 1.0, reloadMult: 1.0, size: 1.0, color: '#2d5a27' },
+            'light':  { hp: 60,  maxHp: 60,  speed: 1.0,  powerMult: 0.5, reloadMult: 0.7, size: 1.0, color: '#4a7c44' }
+        };
 
-        const ammoTypes = {
-            '1': { name: "HE", power: 12, reload: 20, speed: 11, color: "#e67e22", isExplosive: true },
-            '2': { name: "AP", power: 22, reload: 25, bounce: true, speed: 13, color: "#34495e" },
-            '3': { name: "APFSDS", power: 35, reload: 55, speed: 45, color: "#2c3e50" },
-            '4': { name: "AE", power: 8, reload: 18, bounce: true, speed: 8, color: "#f1c40f" },
-            '5': { name: "HESH", power: 20, reload: 35, speed: 10, color: "#9b59b6", isExplosive: true, bigExplosion: true },
-            '6': { name: "FS", power: 4, reload: 35, speed: 15, color: "#7f8c8d", isFlechette: true },
-            '7': { name: "APHE", power: 25, reload: 35, speed: 18, color: "#e74c3c", isExplosive: true },
-            '8': { name: "HEAT", power: 20, reload: 25, speed: 10, color: "#d35400", isExplosive: true, isCluster: true }
-        };
+        const ammoTypes = {
+            '1': { name: "HE", power: 12, reload: 20, speed: 11, color: "#e67e22", isExplosive: true },
+            '2': { name: "AP", power: 22, reload: 25, bounce: true, speed: 13, color: "#34495e" },
+            '3': { name: "APFSDS", power: 35, reload: 55, speed: 45, color: "#2c3e50" },
+            '4': { name: "AE", power: 8, reload: 18, bounce: true, speed: 8, color: "#f1c40f" },
+            '5': { name: "HESH", power: 20, reload: 35, speed: 10, color: "#9b59b6", isExplosive: true, bigExplosion: true },
+            '6': { name: "FS", power: 4, reload: 35, speed: 15, color: "#7f8c8d", isFlechette: true },
+            '7': { name: "APHE", power: 25, reload: 35, speed: 18, color: "#e74c3c", isExplosive: true },
+            '8': { name: "HEAT", power: 20, reload: 25, speed: 10, color: "#d35400", isExplosive: true, isCluster: true }
+        };
 
-        const player = {
-            id: "P-" + Math.random().toString(36).substr(2, 5),
-            type: 'medium', team: teamName, x: 0, y: 0, angle: 0, turretAngle: 0, vx: 0, vy: 0, hp: 100, maxHp: 100,
-            reloading: 0, maxReload: 0, currentAmmo: '1', name: "Guest",
-            gadgetCD: 0, repairPool: 0,
-            defense: 1, defenseCD: 0, adsActive: 0, c4: null, shake: 0
-        };
+        const player = {
+            id: "P-" + Math.random().toString(36).substr(2, 5),
+            type: 'medium', team: teamName, x: 0, y: 0, angle: 0, turretAngle: 0, vx: 0, vy: 0, hp: 100, maxHp: 100,
+            reloading: 0, maxReload: 0, currentAmmo: '1', name: "Guest",
+            gadgetCD: 0, repairPool: 0,
+            defense: 1, defenseCD: 0, adsActive: 0, c4: null, shake: 0
+        };
 
-        const players = {}, shells = [], explosions = [], keys = {};
-        let isMobileMode = false;
+        const players = {}, shells = [], explosions = [], keys = {};
+        let isMobileMode = false;
+        let socket;
 
-        const walls = [
-            {x: 0, y: 0, w: worldWidth, h: 20}, {x: 0, y: worldHeight-20, w: worldWidth, h: 20},
-            {x: 0, y: 0, w: 20, h: worldHeight}, {x: worldWidth-20, y: 0, w: 20, h: worldHeight},
-            {x: worldWidth/2-100, y: worldHeight/2-300, w: 200, h: 40}, 
-            {x: worldWidth/2-100, y: worldHeight/2+260, w: 200, h: 40},
-            {x: worldWidth/2-400, y: worldHeight/2-50, w: 250, h: 100},
-            {x: worldWidth/2+150, y: worldHeight/2-50, w: 250, h: 100},
-            {x: 400, y: 300, w: 40, h: 400}, {x: worldWidth-440, y: 300, w: 40, h: 400},
-            {x: 400, y: worldHeight-700, w: 40, h: 400}, {x: worldWidth-440, y: worldHeight-700, w: 40, h: 400},
-            {x: 200, y: 200, w: 80, h: 80}, {x: worldWidth-280, y: 200, w: 80, h: 80},
-            {x: 200, y: worldHeight-280, w: 80, h: 80}, {x: worldWidth-280, y: worldHeight-280, w: 80, h: 80}
-        ];
+        const walls = [ /* 壁データ（元のコードと同じ） */ 
+            {x: 0, y: 0, w: worldWidth, h: 20}, {x: 0, y: worldHeight-20, w: worldWidth, h: 20},
+            {x: 0, y: 0, w: 20, h: worldHeight}, {x: worldWidth-20, y: 0, w: 20, h: worldHeight},
+            {x: worldWidth/2-100, y: worldHeight/2-300, w: 200, h: 40}, 
+            {x: worldWidth/2-100, y: worldHeight/2+260, w: 200, h: 40},
+            {x: worldWidth/2-400, y: worldHeight/2-50, w: 250, h: 100},
+            {x: worldWidth/2+150, y: worldHeight/2-50, w: 250, h: 100},
+            {x: 400, y: 300, w: 40, h: 400}, {x: worldWidth-440, y: 300, w: 40, h: 400},
+            {x: 400, y: worldHeight-700, w: 40, h: 400}, {x: worldWidth-440, y: worldHeight-700, w: 40, h: 400},
+            {x: 200, y: 200, w: 80, h: 80}, {x: worldWidth-280, y: 200, w: 80, h: 80},
+            {x: 200, y: worldHeight-280, w: 80, h: 80}, {x: worldWidth-280, y: worldHeight-280, w: 80, h: 80}
+        ];
 
-        const ammoList = document.getElementById('ammo-list');
-        Object.keys(ammoTypes).forEach(key => {
-            const btn = document.createElement('div');
-            btn.className = 'ammo-btn'; btn.innerText = key;
-            btn.onclick = () => player.currentAmmo = key;
-            ammoList.appendChild(btn);
-        });
+        // ammoボタン作成
+        const ammoList = document.getElementById('ammo-list');
+        Object.keys(ammoTypes).forEach(key => {
+            const btn = document.createElement('div');
+            btn.className = 'ammo-btn';
+            btn.innerText = key;
+            btn.onclick = () => player.currentAmmo = key;
+            ammoList.appendChild(btn);
+        });
 
-        let stickData = { active: false, x: 0, y: 0 };
-        const stickEl = document.getElementById('stick'), stickArea = document.getElementById('stick-area');
-        stickArea.addEventListener('touchstart', (e) => { stickData.active = true; handleStick(e); });
-        stickArea.addEventListener('touchmove', (e) => { if(stickData.active) { e.preventDefault(); handleStick(e); } }, {passive:false});
-        stickArea.addEventListener('touchend', () => { stickData.active = false; stickData.x = 0; stickData.y = 0; stickEl.style.transform = `translate(-50%, -50%)`; });
+        // スティック制御
+        let stickData = { active: false, x: 0, y: 0 };
+        const stickEl = document.getElementById('stick'), stickArea = document.getElementById('stick-area');
+        stickArea.addEventListener('touchstart', (e) => { stickData.active = true; handleStick(e); });
+        stickArea.addEventListener('touchmove', (e) => { if(stickData.active) { e.preventDefault(); handleStick(e); } }, {passive:false});
+        stickArea.addEventListener('touchend', () => { stickData.active = false; stickData.x = 0; stickData.y = 0; stickEl.style.transform = `translate(-50%, -50%)`; });
 
-        function handleStick(e) {
-            const touch = e.touches[0], rect = stickArea.getBoundingClientRect();
-            const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
-            const dx = touch.clientX - cx, dy = touch.clientY - cy;
-            const dist = Math.min(60, Math.hypot(dx, dy)), angle = Math.atan2(dy, dx);
-            stickData.x = (Math.cos(angle) * dist) / 60; stickData.y = (Math.sin(angle) * dist) / 60;
-            stickEl.style.transform = `translate(calc(-50% + ${Math.cos(angle)*dist}px), calc(-50% + ${Math.sin(angle)*dist}px))`;
-        }
+        function handleStick(e) {
+            const touch = e.touches[0], rect = stickArea.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+            const dx = touch.clientX - cx, dy = touch.clientY - cy;
+            const dist = Math.min(60, Math.hypot(dx, dy)), angle = Math.atan2(dy, dx);
+            stickData.x = (Math.cos(angle) * dist) / 60;
+            stickData.y = (Math.sin(angle) * dist) / 60;
+            stickEl.style.transform = `translate(calc(-50% + ${Math.cos(angle)*dist}px), calc(-50% + ${Math.sin(angle)*dist}px))`;
+        }
 
-        document.getElementById('btn-fire').addEventListener('touchstart', (e) => { e.preventDefault(); keys[' '] = true; });
-        document.getElementById('btn-fire').addEventListener('touchend', () => keys[' '] = false);
-        document.getElementById('btn-gadget').addEventListener('touchstart', (e) => { e.preventDefault(); useGadget(); });
-        document.getElementById('btn-def').addEventListener('touchstart', (e) => { e.preventDefault(); useDefense(); });
+        // モバイルボタン
+        document.getElementById('btn-fire').addEventListener('touchstart', (e) => { e.preventDefault(); keys[' '] = true; });
+        document.getElementById('btn-fire').addEventListener('touchend', () => keys[' '] = false);
+        document.getElementById('btn-gadget').addEventListener('touchstart', (e) => { e.preventDefault(); useGadget(); });
+        document.getElementById('btn-def').addEventListener('touchstart', (e) => { e.preventDefault(); useDefense(); });
 
-        function isPointInWall(x, y, padding = 25) {
-            return walls.some(w => x + padding > w.x && x - padding < w.x + w.w && y + padding > w.y && y - padding < w.y + w.h);
-        }
+        function isPointInWall(x, y, padding = 25) {
+            return walls.some(w => x + padding > w.x && x - padding < w.x + w.w && y + padding > w.y && y - padding < w.y + w.h);
+        }
 
-        function respawn() {
-            let safe = false;
-            while (!safe) {
-                player.x = Math.random() * (worldWidth - 200) + 100;
-                player.y = Math.random() * (worldHeight - 200) + 100;
-                if (!isPointInWall(player.x, player.y, 45)) safe = true;
-            }
-            const spec = tankSpecs[player.type];
-            player.hp = spec.hp; player.maxHp = spec.maxHp;
-            player.vx = 0; player.vy = 0; player.repairPool = 0; player.c4 = null;
-        }
+        function respawn() {
+            let safe = false;
+            while (!safe) {
+                player.x = Math.random() * (worldWidth - 200) + 100;
+                player.y = Math.random() * (worldHeight - 200) + 100;
+                if (!isPointInWall(player.x, player.y, 45)) safe = true;
+            }
+            const spec = tankSpecs[player.type];
+            player.hp = spec.hp; player.maxHp = spec.maxHp;
+            player.vx = 0; player.vy = 0; player.repairPool = 0; player.c4 = null;
+        }
 
-        function setupSelect(id) {
-            document.getElementById(id).onclick = () => {
-                const parts = id.split('-');
-                if(parts[0] === 'type') player.type = parts[1];
-                if(parts[0] === 'def') player.defense = parseInt(parts[1]);
-                const btns = document.getElementById(id).parentElement.querySelectorAll('.btn');
-                btns.forEach(b => b.classList.remove('selected'));
-                document.getElementById(id).classList.add('selected');
-            };
-        }
-        ['type-heavy','type-medium','type-light','def-1','def-4','def-6','def-7'].forEach(setupSelect);
+        function setupSelect(id) {
+            document.getElementById(id).onclick = () => {
+                const parts = id.split('-');
+                if(parts[0] === 'type') player.type = parts[1];
+                if(parts[0] === 'def') player.defense = parseInt(parts[1]);
+                const btns = document.getElementById(id).parentElement.querySelectorAll('.btn');
+                btns.forEach(b => b.classList.remove('selected'));
+                document.getElementById(id).classList.add('selected');
+            };
+        }
+        ['type-heavy','type-medium','type-light','def-1','def-4','def-6','def-7'].forEach(setupSelect);
 
-        document.getElementById('start-game').onclick = () => {
-            player.name = prompt("名前を入力", "T34") || "Guest";
-            document.getElementById('setup').style.display = 'none';
-            if('ontouchstart' in window) { isMobileMode = true; document.getElementById('mobile-controls').style.display = 'block'; }
-            respawn(); initSocket(); requestAnimationFrame(gameLoop);
-        };
+        document.getElementById('start-game').onclick = () => {
+            player.name = prompt("名前を入力", "T34") || "Guest";
+            document.getElementById('setup').style.display = 'none';
+            if('ontouchstart' in window) { 
+                isMobileMode = true; 
+                document.getElementById('mobile-controls').style.display = 'block'; 
+            }
+            respawn();
+            initSocket();
+            requestAnimationFrame(gameLoop);
+        };
 
-        let socket;
-        function initSocket() {
-            socket = new WebSocket('wss://cloud.achex.ca/tank_tactical_team_v2');
-            socket.onopen = () => {
-                socket.send(JSON.stringify({auth: player.id, password: "pass"}));
-                socket.send(JSON.stringify({joinHub: HUB_NAME}));
-            };
-            socket.onmessage = (e) => {
-                const raw = JSON.parse(e.data); if (!raw.msg) return;
-                const data = JSON.parse(raw.msg);
-                if (data.type === 'move') players[data.id] = {...data, lastUpdate: Date.now()};
-                if (data.type === 'fire') shells.push(data.shell);
-                if (data.type === 'boom') createExplosion(data.x, data.y, data.power, data.ownerName, data.ownerTeam, data.ownerId, data.weaponName, false);
-                if (data.type === 'kill') showKillLog(data.victim, data.attacker, data.weaponName);
-                if (data.type === 'c4_placed') { if(players[data.ownerId]) players[data.ownerId].c4 = { x: data.x, y: data.y }; }
-            };
-        }
+        function initSocket() {
+            socket = new WebSocket('wss://cloud.achex.ca/');
 
-        function useGadget() {
-            if(player.gadgetCD > 0) return;
-            player.repairPool = 30; player.gadgetCD = 600;
-        }
+            socket.onopen = () => {
+                console.log('%c✅ Achex Cloud に接続成功', 'color:#2ecc71; font-weight:bold');
+                socket.send(JSON.stringify({auth: player.id, passwd: "pass"}));
+                socket.send(JSON.stringify({joinHub: HUB_NAME}));
+            };
 
-        function useDefense() {
-            if(player.defenseCD > 0) return;
-            const tAngle = player.turretAngle;
-            let s = null;
-            const base = { x: player.x, y: player.y, owner: player.id, ownerName: player.name, ownerTeam: player.team };
+            socket.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.auth || data.joinHub) return; // システムメッセージは無視
 
-            if(player.defense === 1) { // AT4
-                s = { ...base, vx: Math.cos(tAngle)*6, vy: Math.sin(tAngle)*6, power: 40, color: "#c0392b", isMissile: true, isExplosive: true, weaponName: "AT4", life: 500 };
-                player.defenseCD = 240;
-            } else if(player.defense === 6) { // ADS
-                player.adsActive = 300; player.defenseCD = 700;
-            } else if(player.defense === 7) { // C4
-                if (!player.c4) {
-                    player.c4 = { x: player.x, y: player.y };
-                    socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'c4_placed', x: player.x, y: player.y, ownerId: player.id})}));
-                } else {
-                    createExplosion(player.c4.x, player.c4.y, 60, player.name, player.team, player.id, "リモートC4", true);
-                    player.c4 = null; player.defenseCD = 400;
-                }
-            } else if(player.defense === 4) { // 近接信管
-                s = { ...base, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 30, color: "#2ecc71", isProxy: true, proxDist: 110, isExplosive: true, weaponName: "近接信管弾", life: 180 };
-                player.defenseCD = 350;
-            }
-            if(s) { shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})})); }
-        }
+                    if (data.type === 'move' && data.id !== player.id) {
+                        players[data.id] = {...data, lastUpdate: Date.now()};
+                    }
+                    if (data.type === 'fire') shells.push(data.shell);
+                    if (data.type === 'boom') {
+                        createExplosion(data.x, data.y, data.power, data.ownerName, data.ownerTeam, data.ownerId, data.weaponName, false);
+                    }
+                    if (data.type === 'kill') showKillLog(data.victim, data.attacker, data.weaponName);
+                    if (data.type === 'c4_placed') {
+                        if (players[data.ownerId]) players[data.ownerId].c4 = { x: data.x, y: data.y };
+                    }
+                } catch(err) {}
+            };
 
-        function fireShell(ammoKey) {
-            const spec = tankSpecs[player.type];
-            const a = ammoTypes[ammoKey];
-            const base = { x: player.x + Math.cos(player.turretAngle)*45, y: player.y + Math.sin(player.turretAngle)*45, owner: player.id, ownerName: player.name, ownerTeam: player.team, weaponName: a.name };
+            socket.onerror = (err) => console.error('WebSocketエラー:', err);
+            socket.onclose = () => console.warn('⚠️ WebSocket切断されました');
+        }
 
-            if (a.isFlechette) {
-                for(let i=0; i<12; i++) {
-                    const ang = player.turretAngle + (Math.random()-0.5)*0.25;
-                    const s = { ...base, vx: Math.cos(ang)*a.speed*(0.9+Math.random()*0.2), vy: Math.sin(ang)*a.speed*(0.9+Math.random()*0.2), power: a.power * spec.powerMult, color: a.color, life: 40 };
-                    shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
-                }
-            } else {
-                const s = { ...base, vx: Math.cos(player.turretAngle)*a.speed, vy: Math.sin(player.turretAngle)*a.speed, power: a.power * spec.powerMult, bounce: a.bounce, color: a.color, isExplosive: a.isExplosive, life: 200, bCount: 3, bigExp: a.bigExplosion };
-                shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
-            }
-            player.vx -= Math.cos(player.turretAngle) * (a.power * 0.1);
-            player.vy -= Math.sin(player.turretAngle) * (a.power * 0.1);
-        }
+        function useGadget() {
+            if(player.gadgetCD > 0) return;
+            player.repairPool = 30; player.gadgetCD = 600;
+        }
 
-        window.onkeydown = (e) => { 
-            keys[e.key] = true; 
-            if(ammoTypes[e.key]) player.currentAmmo = e.key;
-            if(e.key.toLowerCase()==='r') useGadget();
-            if(e.key.toLowerCase()==='q') useDefense();
-        };
-        window.onkeyup = (e) => keys[e.key] = false;
+        function useDefense() {
+            if(player.defenseCD > 0) return;
+            const tAngle = player.turretAngle;
+            let s = null;
+            const base = { x: player.x, y: player.y, owner: player.id, ownerName: player.name, ownerTeam: player.team };
 
-        function createExplosion(x, y, power, ownerName, ownerTeam, ownerId, weaponName, isOwner) {
-            const isCritical = power >= 25;
-            explosions.push({ x, y, r: 0, life: isCritical ? 45 : 25, critical: isCritical });
-            
-            const dist = Math.hypot(player.x - x, player.y - y);
-            if (dist < (isCritical ? 130 : 90)) {
-                // フレンドリーファイア無効化の条件: 
-                // チームが同じ かつ チーム名が "Free" ではない かつ 自分自身ではない
-                const isFriendly = (ownerTeam !== "Free" && ownerTeam === player.team && ownerId !== player.id);
-                if (!isFriendly) {
-                    processDamage(power * 0.8, ownerName, weaponName);
-                }
-            }
-            if (isOwner) socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'boom', x, y, power, ownerName, ownerTeam, ownerId, weaponName})}));
-        }
+            if(player.defense === 1) { // AT4
+                s = { ...base, vx: Math.cos(tAngle)*6, vy: Math.sin(tAngle)*6, power: 40, color: "#c0392b", isMissile: true, isExplosive: true, weaponName: "AT4", life: 500 };
+                player.defenseCD = 240;
+            } else if(player.defense === 6) { // ADS
+                player.adsActive = 300; player.defenseCD = 700;
+            } else if(player.defense === 7) { // C4
+                if (!player.c4) {
+                    player.c4 = { x: player.x, y: player.y };
+                    if(socket) socket.send(JSON.stringify({toH: HUB_NAME, type: 'c4_placed', x: player.x, y: player.y, ownerId: player.id}));
+                } else {
+                    createExplosion(player.c4.x, player.c4.y, 60, player.name, player.team, player.id, "リモートC4", true);
+                    player.c4 = null; player.defenseCD = 400;
+                }
+            } else if(player.defense === 4) { // 近接信管
+                s = { ...base, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 30, color: "#2ecc71", isProxy: true, proxDist: 110, isExplosive: true, weaponName: "近接信管弾", life: 180 };
+                player.defenseCD = 350;
+            }
 
-        function processDamage(power, ownerName, weaponName) {
-            if(player.hp <= 0) return;
-            player.hp -= power; player.shake = Math.min(30, power);
-            if (player.hp <= 0) {
-                socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'kill', victim:player.name, attacker:ownerName, weaponName:weaponName})}));
-                respawn(); 
-            }
-        }
+            if(s) {
+                shells.push(s);
+                if(socket) socket.send(JSON.stringify({toH: HUB_NAME, type: 'fire', shell: s}));
+            }
+        }
 
-        function update() {
-            const spec = tankSpecs[player.type];
-            let moveSpeed = spec.speed;
-            if (isMobileMode && stickData.active) {
-                const targetAngle = Math.atan2(stickData.y, stickData.x);
-                player.angle = targetAngle; player.turretAngle = targetAngle;
-                player.vx += Math.cos(targetAngle) * Math.hypot(stickData.x, stickData.y) * moveSpeed;
-                player.vy += Math.sin(targetAngle) * Math.hypot(stickData.x, stickData.y) * moveSpeed;
-            } else {
-                if (keys['ArrowUp']) { player.vx += Math.cos(player.angle)*moveSpeed; player.vy += Math.sin(player.angle)*moveSpeed; }
-                if (keys['ArrowDown']) { player.vx -= Math.cos(player.angle)*moveSpeed*0.5; player.vy -= Math.sin(player.angle)*moveSpeed*0.5; }
-                if (keys['ArrowLeft']) { player.angle -= 0.045; player.turretAngle -= 0.045; }
-                if (keys['ArrowRight']) { player.angle += 0.045; player.turretAngle += 0.045; }
-                if (keys['a']) player.turretAngle -= 0.05; if (keys['d']) player.turretAngle += 0.05;
-            }
-            player.vx *= 0.91; player.vy *= 0.91;
-            if (!isPointInWall(player.x + player.vx, player.y + player.vy, 22)) { player.x += player.vx; player.y += player.vy; }
+        function fireShell(ammoKey) {
+            const spec = tankSpecs[player.type];
+            const a = ammoTypes[ammoKey];
+            const base = { x: player.x + Math.cos(player.turretAngle)*45, y: player.y + Math.sin(player.turretAngle)*45, owner: player.id, ownerName: player.name, ownerTeam: player.team, weaponName: a.name };
 
-            if(player.repairPool > 0) { const amt = 0.15; player.hp = Math.min(player.maxHp, player.hp + amt); player.repairPool -= amt; }
-            if(player.reloading > 0) player.reloading--;
-            if(player.gadgetCD > 0) player.gadgetCD--;
-            if(player.defenseCD > 0) player.defenseCD--;
-            if(player.adsActive > 0) player.adsActive--;
-            if(player.shake > 0) player.shake *= 0.9;
+            if (a.isFlechette) {
+                for(let i=0; i<12; i++) {
+                    const ang = player.turretAngle + (Math.random()-0.5)*0.25;
+                    const s = { ...base, vx: Math.cos(ang)*a.speed*(0.9+Math.random()*0.2), vy: Math.sin(ang)*a.speed*(0.9+Math.random()*0.2), power: a.power * spec.powerMult, color: a.color, life: 40 };
+                    shells.push(s);
+                    if(socket) socket.send(JSON.stringify({toH: HUB_NAME, type: 'fire', shell: s}));
+                }
+            } else {
+                const s = { ...base, vx: Math.cos(player.turretAngle)*a.speed, vy: Math.sin(player.turretAngle)*a.speed, power: a.power * spec.powerMult, bounce: a.bounce, color: a.color, isExplosive: a.isExplosive, life: 200, bCount: 3, bigExp: a.bigExplosion };
+                shells.push(s);
+                if(socket) socket.send(JSON.stringify({toH: HUB_NAME, type: 'fire', shell: s}));
+            }
+            player.vx -= Math.cos(player.turretAngle) * (a.power * 0.1);
+            player.vy -= Math.sin(player.turretAngle) * (a.power * 0.1);
+        }
 
-            for (let i = shells.length-1; i >= 0; i--) {
-                const s = shells[i];
-                if (player.adsActive > 0 && s.owner !== player.id && Math.hypot(player.x - s.x, player.y - s.y) < 120) {
-                    if (s.ownerTeam === "Free" || s.ownerTeam !== player.team) {
-                        explosions.push({ x: s.x, y: s.y, r: 0, life: 10, critical: false }); shells.splice(i,1); continue;
-                    }
-                }
-                s.x += s.vx; s.y += s.vy; s.life--;
+        window.onkeydown = (e) => { 
+            keys[e.key] = true; 
+            if(ammoTypes[e.key]) player.currentAmmo = e.key;
+            if(e.key.toLowerCase()==='r') useGadget();
+            if(e.key.toLowerCase()==='q') useDefense();
+        };
+        window.onkeyup = (e) => keys[e.key] = false;
 
-                const hitW = walls.find(w => s.x > w.x && s.x < w.x + w.w && s.y > w.y && s.y < w.y + w.h);
-                if (hitW) {
-                    if (s.bounce && s.bCount-- > 0) { if (s.x - s.vx <= hitW.x || s.x - s.vx >= hitW.x + hitW.w) s.vx *= -1; else s.vy *= -1; }
-                    else s.life = 0;
-                }
-                
-                if (s.owner !== player.id && Math.hypot(player.x-s.x, player.y-s.y) < 32) {
-                    const isFriendly = (s.ownerTeam !== "Free" && s.ownerTeam === player.team);
-                    if (!isFriendly) {
-                        if (s.isExplosive) createExplosion(s.x, s.y, s.power, s.ownerName, s.ownerTeam, s.owner, s.weaponName, true);
-                        else processDamage(s.power, s.ownerName, s.weaponName);
-                        shells.splice(i,1); continue;
-                    }
-                }
+        function createExplosion(x, y, power, ownerName, ownerTeam, ownerId, weaponName, isOwner) {
+            const isCritical = power >= 25;
+            explosions.push({ x, y, r: 0, life: isCritical ? 45 : 25, critical: isCritical });
+            
+            const dist = Math.hypot(player.x - x, player.y - y);
+            if (dist < (isCritical ? 130 : 90)) {
+                const isFriendly = (ownerTeam !== "Free" && ownerTeam === player.team && ownerId !== player.id);
+                if (!isFriendly) {
+                    processDamage(power * 0.8, ownerName, weaponName);
+                }
+            }
+            if (isOwner && socket) {
+                socket.send(JSON.stringify({toH: HUB_NAME, type: 'boom', x, y, power, ownerName, ownerTeam, ownerId, weaponName}));
+            }
+        }
 
-                if (s.life <= 0) {
-                    if (s.isExplosive) createExplosion(s.x, s.y, s.bigExp ? 45 : s.power, s.ownerName, s.ownerTeam, s.owner, s.weaponName, s.owner === player.id);
-                    shells.splice(i,1);
-                }
-            }
-            explosions.forEach((e, i) => { e.r += 4; if(e.life-- <= 0) explosions.splice(i,1); });
+        function processDamage(power, ownerName, weaponName) {
+            if(player.hp <= 0) return;
+            player.hp -= power; player.shake = Math.min(30, power);
+            if (player.hp <= 0) {
+                if(socket) socket.send(JSON.stringify({toH: HUB_NAME, type: 'kill', victim:player.name, attacker:ownerName, weaponName:weaponName}));
+                respawn(); 
+            }
+        }
 
-            if (keys[' '] && player.reloading <= 0 && player.hp > 0) {
-                fireShell(player.currentAmmo);
-                player.reloading = ammoTypes[player.currentAmmo].reload * spec.reloadMult; player.maxReload = player.reloading;
-            }
+        function update() {
+            const spec = tankSpecs[player.type];
+            let moveSpeed = spec.speed;
 
-            if (socket?.readyState === 1) {
-                socket.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({
-                    type: 'move', id: player.id, x: player.x, y: player.y, angle: player.angle, tAngle: player.turretAngle, 
-                    hp: player.hp, name: player.name, team: player.team, tankType: player.type, adsActive: player.adsActive
-                })}));
-            }
-            document.getElementById('hpDisplay').innerText = `HP: ${Math.ceil(player.hp)}`;
-            document.getElementById('weaponDisplay').innerText = ammoTypes[player.currentAmmo].name;
-            document.getElementById('gadget-bar').style.width = (100 - (player.gadgetCD/600)*100) + "%";
-            document.getElementById('defense-bar').style.width = (100 - (player.defenseCD/500)*100) + "%";
-        }
+            if (isMobileMode && stickData.active) {
+                const targetAngle = Math.atan2(stickData.y, stickData.x);
+                player.angle = targetAngle; player.turretAngle = targetAngle;
+                const force = Math.hypot(stickData.x, stickData.y);
+                player.vx += Math.cos(targetAngle) * force * moveSpeed;
+                player.vy += Math.sin(targetAngle) * force * moveSpeed;
+            } else {
+                if (keys['ArrowUp']) { player.vx += Math.cos(player.angle)*moveSpeed; player.vy += Math.sin(player.angle)*moveSpeed; }
+                if (keys['ArrowDown']) { player.vx -= Math.cos(player.angle)*moveSpeed*0.5; player.vy -= Math.sin(player.angle)*moveSpeed*0.5; }
+                if (keys['ArrowLeft']) { player.angle -= 0.045; player.turretAngle -= 0.045; }
+                if (keys['ArrowRight']) { player.angle += 0.045; player.turretAngle += 0.045; }
+                if (keys['a']) player.turretAngle -= 0.05; if (keys['d']) player.turretAngle += 0.05;
+            }
 
-        function draw() {
-            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-            ctx.save();
-            if(player.shake > 0) ctx.translate((Math.random()-0.5)*player.shake, (Math.random()-0.5)*player.shake);
-            ctx.translate(canvas.width/2 - player.x, canvas.height/2 - player.y);
-            ctx.fillStyle = "#e3d5a1"; ctx.fillRect(0,0,worldWidth,worldHeight);
-            walls.forEach(w => { ctx.fillStyle = "#5d4037"; ctx.fillRect(w.x, w.y, w.w, w.h); });
+            player.vx *= 0.91; player.vy *= 0.91;
+            if (!isPointInWall(player.x + player.vx, player.y + player.vy, 22)) { 
+                player.x += player.vx; player.y += player.vy; 
+            }
 
-            shells.forEach(s => { ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, Math.PI * 2); ctx.fill(); });
+            if(player.repairPool > 0) { const amt = 0.15; player.hp = Math.min(player.maxHp, player.hp + amt); player.repairPool -= amt; }
+            if(player.reloading > 0) player.reloading--;
+            if(player.gadgetCD > 0) player.gadgetCD--;
+            if(player.defenseCD > 0) player.defenseCD--;
+            if(player.adsActive > 0) player.adsActive--;
+            if(player.shake > 0) player.shake *= 0.9;
 
-            const drawT = (t, isSelf) => {
-                const spec = tankSpecs[t.tankType || 'medium'], s = spec.size;
-                const isAlly = (t.team !== "Free" && t.team === player.team);
-                ctx.save(); ctx.translate(t.x, t.y);
-                if (t.adsActive > 0) {
-                    ctx.strokeStyle = "rgba(0, 255, 255, 0.6)"; ctx.lineWidth = 3;
-                    ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.arc(0, 0, 120, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
-                }
-                ctx.save(); ctx.rotate(t.angle); ctx.fillStyle = spec.color; ctx.fillRect(-22*s,-18*s,44*s,36*s); ctx.strokeRect(-22*s,-18*s,44*s,36*s); ctx.restore();
-                ctx.save(); ctx.rotate(t.tAngle || t.turretAngle); ctx.fillStyle = spec.color; ctx.fillRect(-14*s,-14*s,28*s,28*s); ctx.strokeRect(-14*s,-14*s,28*s,28*s);
-                ctx.fillStyle="#333"; ctx.fillRect(0,-5*s,40*s,10*s); 
-                ctx.restore();
-                
-                // (チーム名) | 名前 の形式で表示
-                ctx.fillStyle = isSelf ? "black" : (isAlly ? "#2980b9" : "#c0392b");
-                ctx.font = `bold 14px Arial`; ctx.textAlign="center"; 
-                ctx.fillText(`(${t.team}) | ${t.name}`, 0, -45);
-                
-                ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(-25,-35,50,5);
-                ctx.fillStyle = (t.hp/spec.maxHp) > 0.3 ? "#2ecc71" : "#e74c3c"; ctx.fillRect(-25,-35,50*(t.hp/spec.maxHp),5);
-                ctx.restore();
-            };
+            // shells更新（元のコードと同じ）
+            for (let i = shells.length-1; i >= 0; i--) {
+                const s = shells[i];
+                if (player.adsActive > 0 && s.owner !== player.id && Math.hypot(player.x - s.x, player.y - s.y) < 120) {
+                    if (s.ownerTeam === "Free" || s.ownerTeam !== player.team) {
+                        explosions.push({ x: s.x, y: s.y, r: 0, life: 10, critical: false });
+                        shells.splice(i,1); continue;
+                    }
+                }
+                s.x += s.vx; s.y += s.vy; s.life--;
 
-            for (let id in players) if(Date.now()-players[id].lastUpdate < 3000) drawT(players[id], false);
-            if(player.hp > 0) drawT(player, true);
+                const hitW = walls.find(w => s.x > w.x && s.x < w.x + w.w && s.y > w.y && s.y < w.y + w.h);
+                if (hitW) {
+                    if (s.bounce && s.bCount-- > 0) { 
+                        if (s.x - s.vx <= hitW.x || s.x - s.vx >= hitW.x + hitW.w) s.vx *= -1; 
+                        else s.vy *= -1; 
+                    } else s.life = 0;
+                }
+                
+                if (s.owner !== player.id && Math.hypot(player.x-s.x, player.y-s.y) < 32) {
+                    const isFriendly = (s.ownerTeam !== "Free" && s.ownerTeam === player.team);
+                    if (!isFriendly) {
+                        if (s.isExplosive) createExplosion(s.x, s.y, s.power, s.ownerName, s.ownerTeam, s.owner, s.weaponName, true);
+                        else processDamage(s.power, s.ownerName, s.weaponName);
+                        shells.splice(i,1); continue;
+                    }
+                }
 
-            explosions.forEach(b => { 
-                const grad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
-                grad.addColorStop(0, `rgba(255, ${b.critical?150:200}, 50, ${b.life/30})`);
-                grad.addColorStop(1, `rgba(200, 50, 0, 0)`);
-                ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill(); 
-            });
-            ctx.restore();
-        }
+                if (s.life <= 0) {
+                    if (s.isExplosive) createExplosion(s.x, s.y, s.bigExp ? 45 : s.power, s.ownerName, s.ownerTeam, s.owner, s.weaponName, s.owner === player.id);
+                    shells.splice(i,1);
+                }
+            }
 
-        function showKillLog(v, a, w) { 
-            const l = document.getElementById('killLog'); 
-            l.innerHTML = `<span style="color:#222">${v}</span> <small>destroyed by</small> <span style="color:#c0392b">${a}</span> <br><small>[${w}]</small>`; 
-            setTimeout(()=>l.innerText="", 5000); 
-        }
+            explosions.forEach((e, i) => { e.r += 4; if(e.life-- <= 0) explosions.splice(i,1); });
 
-        function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
-    })();
-    </script>
+            if (keys[' '] && player.reloading <= 0 && player.hp > 0) {
+                fireShell(player.currentAmmo);
+                player.reloading = ammoTypes[player.currentAmmo].reload * spec.reloadMult;
+                player.maxReload = player.reloading;
+            }
+
+            // 移動データを送信（フラット形式）
+            if (socket && socket.readyState === 1) {
+                socket.send(JSON.stringify({
+                    toH: HUB_NAME,
+                    type: 'move',
+                    id: player.id,
+                    x: player.x, y: player.y,
+                    angle: player.angle,
+                    tAngle: player.turretAngle,
+                    hp: player.hp,
+                    name: player.name,
+                    team: player.team,
+                    tankType: player.type,
+                    adsActive: player.adsActive
+                }));
+            }
+
+            // UI更新
+            document.getElementById('hpDisplay').innerText = `HP: ${Math.ceil(player.hp)}`;
+            document.getElementById('weaponDisplay').innerText = ammoTypes[player.currentAmmo].name;
+            document.getElementById('gadget-bar').style.width = (100 - Math.min(100, (player.gadgetCD/600)*100)) + "%";
+            document.getElementById('defense-bar').style.width = (100 - Math.min(100, (player.defenseCD/700)*100)) + "%";
+        }
+
+        function draw() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            ctx.save();
+            if(player.shake > 0) ctx.translate((Math.random()-0.5)*player.shake, (Math.random()-0.5)*player.shake);
+            ctx.translate(canvas.width/2 - player.x, canvas.height/2 - player.y);
+            ctx.fillStyle = "#e3d5a1"; ctx.fillRect(0,0,worldWidth,worldHeight);
+            walls.forEach(w => { ctx.fillStyle = "#5d4037"; ctx.fillRect(w.x, w.y, w.w, w.h); });
+
+            shells.forEach(s => { 
+                ctx.fillStyle = s.color; 
+                ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, Math.PI * 2); ctx.fill(); 
+            });
+
+            const drawT = (t, isSelf) => {
+                const spec = tankSpecs[t.tankType || 'medium'], s = spec.size;
+                const isAlly = (t.team !== "Free" && t.team === player.team);
+                ctx.save(); ctx.translate(t.x, t.y);
+                if (t.adsActive > 0) {
+                    ctx.strokeStyle = "rgba(0, 255, 255, 0.6)"; ctx.lineWidth = 3;
+                    ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.arc(0, 0, 120, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+                }
+                ctx.save(); ctx.rotate(t.angle); 
+                ctx.fillStyle = spec.color; ctx.fillRect(-22*s,-18*s,44*s,36*s); ctx.strokeRect(-22*s,-18*s,44*s,36*s); 
+                ctx.restore();
+                ctx.save(); ctx.rotate(t.tAngle || t.turretAngle); 
+                ctx.fillStyle = spec.color; ctx.fillRect(-14*s,-14*s,28*s,28*s); ctx.strokeRect(-14*s,-14*s,28*s,28*s);
+                ctx.fillStyle="#333"; ctx.fillRect(0,-5*s,40*s,10*s); 
+                ctx.restore();
+                
+                ctx.fillStyle = isSelf ? "#000" : (isAlly ? "#2980b9" : "#c0392b");
+                ctx.font = `bold 14px Arial`; ctx.textAlign="center"; 
+                ctx.fillText(`(${t.team}) | ${t.name}`, 0, -48);
+                
+                ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(-25,-37,50,6);
+                ctx.fillStyle = (t.hp/spec.maxHp) > 0.3 ? "#2ecc71" : "#e74c3c"; 
+                ctx.fillRect(-25,-37,50*(t.hp/spec.maxHp),6);
+                ctx.restore();
+            };
+
+            for (let id in players) if(Date.now()-players[id].lastUpdate < 3000) drawT(players[id], false);
+            if(player.hp > 0) drawT(player, true);
+
+            explosions.forEach(b => { 
+                const grad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+                grad.addColorStop(0, `rgba(255, ${b.critical?150:200}, 50, ${b.life/30})`);
+                grad.addColorStop(1, `rgba(200, 50, 0, 0)`);
+                ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill(); 
+            });
+            ctx.restore();
+        }
+
+        function showKillLog(v, a, w) { 
+            const l = document.getElementById('killLog'); 
+            l.innerHTML = `<span style="color:#222">${v}</span> <small>destroyed by</small> <span style="color:#c0392b">${a}</span> <br><small>[${w}]</small>`; 
+            setTimeout(()=>{ l.innerHTML = ""; }, 5000); 
+        }
+
+        function gameLoop() { 
+            update(); 
+            draw(); 
+            requestAnimationFrame(gameLoop); 
+        }
+    })();
+    </script>
 </body>
 </html>
