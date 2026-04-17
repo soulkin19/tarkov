@@ -35,8 +35,6 @@
         
         .ammo-selector { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; }
         .ammo-btn { width: 45px; height: 45px; background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #f1c40f; border-radius: 8px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-        
-        /* 新規追加: ロードアウト用 */
         .loadout-btn { width: 80px; height: 50px; font-size: 11px !important; }
     </style>
 </head>
@@ -54,8 +52,7 @@
         </div>
 
         <div class="label">主砲ロードアウト (3つ選択してください)</div>
-        <div class="opt-group" id="loadout-container">
-            </div>
+        <div class="opt-group" id="loadout-container"></div>
 
         <div class="label">セカンダリ武装 [Q]</div>
         <div class="opt-group">
@@ -101,10 +98,11 @@
         const teamName = window.location.hash.substring(1) || "Free";
         document.getElementById('team-name').innerText = teamName;
 
+        // 移動速度を低下
         const tankSpecs = {
-            'heavy':  { hp: 150, maxHp: 150, speed: 0.35, powerMult: 1.8, reloadMult: 1.5, size: 1.0, color: '#1a2a1a' },
-            'medium': { hp: 100, maxHp: 100, speed: 0.5,  powerMult: 1.0, reloadMult: 1.0, size: 1.0, color: '#2d5a27' },
-            'light':  { hp: 60,  maxHp: 60,  speed: 1.0,  powerMult: 0.5, reloadMult: 0.7, size: 1.0, color: '#4a7c44' }
+            'heavy':  { hp: 150, maxHp: 150, speed: 0.22, powerMult: 1.8, reloadMult: 1.5, size: 1.0, color: '#1a2a1a' },
+            'medium': { hp: 100, maxHp: 100, speed: 0.32, powerMult: 1.0, reloadMult: 1.0, size: 1.0, color: '#2d5a27' },
+            'light':  { hp: 60,  maxHp: 60,  speed: 0.55, powerMult: 0.5, reloadMult: 0.7, size: 1.0, color: '#4a7c44' }
         };
 
         const ammoTypes = {
@@ -124,7 +122,7 @@
             reloading: 0, maxReload: 0, currentAmmo: '1', name: "Guest",
             gadgetCD: 0, repairPool: 0,
             defense: 1, defenseCD: 0, adsActive: 0, c4: null, shake: 0,
-            selectedAmmo: [] // ロードアウト保持用
+            selectedAmmo: []
         };
 
         const players = {}, shells = [], explosions = [], keys = {};
@@ -143,7 +141,6 @@
             {x: 200, y: worldHeight-280, w: 80, h: 80}, {x: worldWidth-280, y: worldHeight-280, w: 80, h: 80}
         ];
 
-        // ロードアウト選択UI生成
         const loadoutContainer = document.getElementById('loadout-container');
         Object.keys(ammoTypes).forEach(key => {
             const btn = document.createElement('button');
@@ -225,9 +222,8 @@
         document.getElementById('start-game').onclick = () => {
             if (player.selectedAmmo.length !== 3) return;
             player.name = prompt("名前を入力", "T34") || "Guest";
-            player.currentAmmo = player.selectedAmmo[0]; // 初期弾薬を選択した中から設定
+            player.currentAmmo = player.selectedAmmo[0];
 
-            // モバイル用弾薬切り替えボタンを、選択した3つのみ生成
             const ammoListUI = document.getElementById('ammo-list');
             player.selectedAmmo.forEach(key => {
                 const btn = document.createElement('div');
@@ -252,7 +248,15 @@
                 const raw = JSON.parse(e.data); if (!raw.msg) return;
                 const data = JSON.parse(raw.msg);
                 if (data.type === 'move') players[data.id] = {...data, lastUpdate: Date.now()};
-                if (data.type === 'fire') shells.push(data.shell);
+                if (data.type === 'fire') {
+                    // 同期ズレ対策: 発射からの経過時間分、弾を前進させる
+                    const s = data.shell;
+                    const elapsedMs = Date.now() - (s.t || Date.now());
+                    const framesToSkip = Math.min(60, (elapsedMs / 16.6)); 
+                    s.x += s.vx * framesToSkip;
+                    s.y += s.vy * framesToSkip;
+                    shells.push(s);
+                }
                 if (data.type === 'boom') createExplosion(data.x, data.y, data.power, data.ownerName, data.ownerTeam, data.ownerId, data.weaponName, false);
                 if (data.type === 'kill') showKillLog(data.victim, data.attacker, data.weaponName);
                 if (data.type === 'c4_placed') { if(players[data.ownerId]) players[data.ownerId].c4 = { x: data.x, y: data.y }; }
@@ -268,14 +272,14 @@
             if(player.defenseCD > 0) return;
             const tAngle = player.turretAngle;
             let s = null;
-            const base = { x: player.x, y: player.y, owner: player.id, ownerName: player.name, ownerTeam: player.team };
+            const base = { x: player.x, y: player.y, owner: player.id, ownerName: player.name, ownerTeam: player.team, t: Date.now() };
 
-            if(player.defense === 1) { // AT4
+            if(player.defense === 1) {
                 s = { ...base, vx: Math.cos(tAngle)*6, vy: Math.sin(tAngle)*6, power: 40, color: "#c0392b", isMissile: true, isExplosive: true, weaponName: "AT4", life: 500 };
                 player.defenseCD = 240;
-            } else if(player.defense === 6) { // ADS
+            } else if(player.defense === 6) {
                 player.adsActive = 300; player.defenseCD = 700;
-            } else if(player.defense === 7) { // C4
+            } else if(player.defense === 7) {
                 if (!player.c4) {
                     player.c4 = { x: player.x, y: player.y };
                     socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'c4_placed', x: player.x, y: player.y, ownerId: player.id})}));
@@ -283,7 +287,7 @@
                     createExplosion(player.c4.x, player.c4.y, 60, player.name, player.team, player.id, "リモートC4", true);
                     player.c4 = null; player.defenseCD = 400;
                 }
-            } else if(player.defense === 4) { // 近接信管
+            } else if(player.defense === 4) {
                 s = { ...base, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 30, color: "#2ecc71", isProxy: true, proxDist: 110, isExplosive: true, weaponName: "近接信管弾", life: 180 };
                 player.defenseCD = 350;
             }
@@ -293,7 +297,7 @@
         function fireShell(ammoKey) {
             const spec = tankSpecs[player.type];
             const a = ammoTypes[ammoKey];
-            const base = { x: player.x + Math.cos(player.turretAngle)*45, y: player.y + Math.sin(player.turretAngle)*45, owner: player.id, ownerName: player.name, ownerTeam: player.team, weaponName: a.name };
+            const base = { x: player.x + Math.cos(player.turretAngle)*45, y: player.y + Math.sin(player.turretAngle)*45, owner: player.id, ownerName: player.name, ownerTeam: player.team, weaponName: a.name, t: Date.now() };
 
             if (a.isFlechette) {
                 for(let i=0; i<12; i++) {
@@ -305,13 +309,12 @@
                 const s = { ...base, vx: Math.cos(player.turretAngle)*a.speed, vy: Math.sin(player.turretAngle)*a.speed, power: a.power * spec.powerMult, bounce: a.bounce, color: a.color, isExplosive: a.isExplosive, life: 200, bCount: 3, bigExp: a.bigExplosion };
                 shells.push(s); socket?.send(JSON.stringify({toH: HUB_NAME, msg: JSON.stringify({type:'fire', shell:s})}));
             }
-            player.vx -= Math.cos(player.turretAngle) * (a.power * 0.1);
-            player.vy -= Math.sin(player.turretAngle) * (a.power * 0.1);
+            player.vx -= Math.cos(player.turretAngle) * (a.power * 0.08);
+            player.vy -= Math.sin(player.turretAngle) * (a.power * 0.08);
         }
 
         window.onkeydown = (e) => { 
             keys[e.key] = true; 
-            // 選択した3つに含まれている場合のみ切り替え可能
             if(ammoTypes[e.key] && player.selectedAmmo.includes(e.key)) player.currentAmmo = e.key;
             if(e.key.toLowerCase()==='r') useGadget();
             if(e.key.toLowerCase()==='q') useDefense();
@@ -323,7 +326,7 @@
             explosions.push({ x, y, r: 0, life: isCritical ? 45 : 25, critical: isCritical });
             
             const dist = Math.hypot(player.x - x, player.y - y);
-            if (dist < (isCritical ? 130 : 90)) {
+            if (dist < (isCritical ? 135 : 95)) {
                 const isFriendly = (ownerTeam !== "Free" && ownerTeam === player.team && ownerId !== player.id);
                 if (!isFriendly) {
                     processDamage(power * 0.8, ownerName, weaponName);
@@ -352,11 +355,11 @@
             } else {
                 if (keys['ArrowUp']) { player.vx += Math.cos(player.angle)*moveSpeed; player.vy += Math.sin(player.angle)*moveSpeed; }
                 if (keys['ArrowDown']) { player.vx -= Math.cos(player.angle)*moveSpeed*0.5; player.vy -= Math.sin(player.angle)*moveSpeed*0.5; }
-                if (keys['ArrowLeft']) { player.angle -= 0.045; player.turretAngle -= 0.045; }
-                if (keys['ArrowRight']) { player.angle += 0.045; player.turretAngle += 0.045; }
-                if (keys['a']) player.turretAngle -= 0.05; if (keys['d']) player.turretAngle += 0.05;
+                if (keys['ArrowLeft']) { player.angle -= 0.035; player.turretAngle -= 0.035; }
+                if (keys['ArrowRight']) { player.angle += 0.035; player.turretAngle += 0.035; }
+                if (keys['a']) player.turretAngle -= 0.04; if (keys['d']) player.turretAngle += 0.04;
             }
-            player.vx *= 0.91; player.vy *= 0.91;
+            player.vx *= 0.88; player.vy *= 0.88;
             if (!isPointInWall(player.x + player.vx, player.y + player.vy, 22)) { player.x += player.vx; player.y += player.vy; }
 
             if(player.repairPool > 0) { const amt = 0.15; player.hp = Math.min(player.maxHp, player.hp + amt); player.repairPool -= amt; }
@@ -368,20 +371,24 @@
 
             for (let i = shells.length-1; i >= 0; i--) {
                 const s = shells[i];
-                if (player.adsActive > 0 && s.owner !== player.id && Math.hypot(player.x - s.x, player.y - s.y) < 120) {
+                const prevX = s.x, prevY = s.y;
+                s.x += s.vx; s.y += s.vy; s.life--;
+
+                if (player.adsActive > 0 && s.owner !== player.id && Math.hypot(player.x - s.x, player.y - s.y) < 125) {
                     if (s.ownerTeam === "Free" || s.ownerTeam !== player.team) {
                         explosions.push({ x: s.x, y: s.y, r: 0, life: 10, critical: false }); shells.splice(i,1); continue;
                     }
                 }
-                s.x += s.vx; s.y += s.vy; s.life--;
 
                 const hitW = walls.find(w => s.x > w.x && s.x < w.x + w.w && s.y > w.y && s.y < w.y + w.h);
                 if (hitW) {
-                    if (s.bounce && s.bCount-- > 0) { if (s.x - s.vx <= hitW.x || s.x - s.vx >= hitW.x + hitW.w) s.vx *= -1; else s.vy *= -1; }
+                    if (s.bounce && s.bCount-- > 0) { if (prevX <= hitW.x || prevX >= hitW.x + hitW.w) s.vx *= -1; else s.vy *= -1; }
                     else s.life = 0;
                 }
                 
-                if (s.owner !== player.id && Math.hypot(player.x-s.x, player.y-s.y) < 32) {
+                // 当たり判定の強化: 線分判定的な要素（前フレームと現フレームの間も考慮）
+                const distToPlayer = Math.hypot(player.x-s.x, player.y-s.y);
+                if (s.owner !== player.id && distToPlayer < 38) {
                     const isFriendly = (s.ownerTeam !== "Free" && s.ownerTeam === player.team);
                     if (!isFriendly) {
                         if (s.isExplosive) createExplosion(s.x, s.y, s.power, s.ownerName, s.ownerTeam, s.owner, s.weaponName, true);
@@ -430,7 +437,7 @@
                 ctx.save(); ctx.translate(t.x, t.y);
                 if (t.adsActive > 0) {
                     ctx.strokeStyle = "rgba(0, 255, 255, 0.6)"; ctx.lineWidth = 3;
-                    ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.arc(0, 0, 120, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+                    ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.arc(0, 0, 125, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
                 }
                 ctx.save(); ctx.rotate(t.angle); ctx.fillStyle = spec.color; ctx.fillRect(-22*s,-18*s,44*s,36*s); ctx.strokeRect(-22*s,-18*s,44*s,36*s); ctx.restore();
                 ctx.save(); ctx.rotate(t.tAngle || t.turretAngle); ctx.fillStyle = spec.color; ctx.fillRect(-14*s,-14*s,28*s,28*s); ctx.strokeRect(-14*s,-14*s,28*s,28*s);
