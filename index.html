@@ -35,6 +35,9 @@
         
         .ammo-selector { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; pointer-events: auto; }
         .ammo-btn { width: 45px; height: 45px; background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #f1c40f; border-radius: 8px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+        
+        /* 新規追加: ロードアウト用 */
+        .loadout-btn { width: 80px; height: 50px; font-size: 11px !important; }
     </style>
 </head>
 <body>
@@ -50,6 +53,10 @@
             <button id="type-light" class="btn sys-btn">軽戦車<small>HP:60 / 高速</small></button>
         </div>
 
+        <div class="label">主砲ロードアウト (3つ選択してください)</div>
+        <div class="opt-group" id="loadout-container">
+            </div>
+
         <div class="label">セカンダリ武装 [Q]</div>
         <div class="opt-group">
             <button id="def-1" class="btn sys-btn selected">AT4<small>誘導ミサイル</small></button>
@@ -58,7 +65,7 @@
             <button id="def-4" class="btn sys-btn">近接信管弾<small>自動爆発</small></button>
         </div>
 
-        <button id="start-game" class="btn" style="background:#f1c40f; color:#000; width:300px; font-size:20px; margin-top:20px;">BATTLE START</button>
+        <button id="start-game" class="btn" style="background:#f1c40f; color:#000; width:300px; font-size:20px; margin-top:20px; opacity: 0.5;">SELECT 3 AMMO</button>
     </div>
 
     <div id="team-indicator">TEAM: <span id="team-name">Free</span></div>
@@ -116,7 +123,8 @@
             type: 'medium', team: teamName, x: 0, y: 0, angle: 0, turretAngle: 0, vx: 0, vy: 0, hp: 100, maxHp: 100,
             reloading: 0, maxReload: 0, currentAmmo: '1', name: "Guest",
             gadgetCD: 0, repairPool: 0,
-            defense: 1, defenseCD: 0, adsActive: 0, c4: null, shake: 0
+            defense: 1, defenseCD: 0, adsActive: 0, c4: null, shake: 0,
+            selectedAmmo: [] // ロードアウト保持用
         };
 
         const players = {}, shells = [], explosions = [], keys = {};
@@ -135,13 +143,36 @@
             {x: 200, y: worldHeight-280, w: 80, h: 80}, {x: worldWidth-280, y: worldHeight-280, w: 80, h: 80}
         ];
 
-        const ammoList = document.getElementById('ammo-list');
+        // ロードアウト選択UI生成
+        const loadoutContainer = document.getElementById('loadout-container');
         Object.keys(ammoTypes).forEach(key => {
-            const btn = document.createElement('div');
-            btn.className = 'ammo-btn'; btn.innerText = key;
-            btn.onclick = () => player.currentAmmo = key;
-            ammoList.appendChild(btn);
+            const btn = document.createElement('button');
+            btn.className = 'btn sys-btn loadout-btn';
+            btn.innerHTML = `${ammoTypes[key].name}<small>${key} Key</small>`;
+            btn.onclick = () => {
+                const idx = player.selectedAmmo.indexOf(key);
+                if (idx > -1) {
+                    player.selectedAmmo.splice(idx, 1);
+                    btn.classList.remove('selected');
+                } else if (player.selectedAmmo.length < 3) {
+                    player.selectedAmmo.push(key);
+                    btn.classList.add('selected');
+                }
+                updateStartButton();
+            };
+            loadoutContainer.appendChild(btn);
         });
+
+        function updateStartButton() {
+            const startBtn = document.getElementById('start-game');
+            if (player.selectedAmmo.length === 3) {
+                startBtn.style.opacity = "1";
+                startBtn.innerText = "BATTLE START";
+            } else {
+                startBtn.style.opacity = "0.5";
+                startBtn.innerText = `SELECT ${3 - player.selectedAmmo.length} MORE`;
+            }
+        }
 
         let stickData = { active: false, x: 0, y: 0 };
         const stickEl = document.getElementById('stick'), stickArea = document.getElementById('stick-area');
@@ -192,7 +223,19 @@
         ['type-heavy','type-medium','type-light','def-1','def-4','def-6','def-7'].forEach(setupSelect);
 
         document.getElementById('start-game').onclick = () => {
+            if (player.selectedAmmo.length !== 3) return;
             player.name = prompt("名前を入力", "T34") || "Guest";
+            player.currentAmmo = player.selectedAmmo[0]; // 初期弾薬を選択した中から設定
+
+            // モバイル用弾薬切り替えボタンを、選択した3つのみ生成
+            const ammoListUI = document.getElementById('ammo-list');
+            player.selectedAmmo.forEach(key => {
+                const btn = document.createElement('div');
+                btn.className = 'ammo-btn'; btn.innerText = ammoTypes[key].name;
+                btn.onclick = () => player.currentAmmo = key;
+                ammoListUI.appendChild(btn);
+            });
+
             document.getElementById('setup').style.display = 'none';
             if('ontouchstart' in window) { isMobileMode = true; document.getElementById('mobile-controls').style.display = 'block'; }
             respawn(); initSocket(); requestAnimationFrame(gameLoop);
@@ -268,7 +311,8 @@
 
         window.onkeydown = (e) => { 
             keys[e.key] = true; 
-            if(ammoTypes[e.key]) player.currentAmmo = e.key;
+            // 選択した3つに含まれている場合のみ切り替え可能
+            if(ammoTypes[e.key] && player.selectedAmmo.includes(e.key)) player.currentAmmo = e.key;
             if(e.key.toLowerCase()==='r') useGadget();
             if(e.key.toLowerCase()==='q') useDefense();
         };
@@ -280,8 +324,6 @@
             
             const dist = Math.hypot(player.x - x, player.y - y);
             if (dist < (isCritical ? 130 : 90)) {
-                // フレンドリーファイア無効化の条件: 
-                // チームが同じ かつ チーム名が "Free" ではない かつ 自分自身ではない
                 const isFriendly = (ownerTeam !== "Free" && ownerTeam === player.team && ownerId !== player.id);
                 if (!isFriendly) {
                     processDamage(power * 0.8, ownerName, weaponName);
@@ -395,7 +437,6 @@
                 ctx.fillStyle="#333"; ctx.fillRect(0,-5*s,40*s,10*s); 
                 ctx.restore();
                 
-                // (チーム名) | 名前 の形式で表示
                 ctx.fillStyle = isSelf ? "black" : (isAlly ? "#2980b9" : "#c0392b");
                 ctx.font = `bold 14px Arial`; ctx.textAlign="center"; 
                 ctx.fillText(`(${t.team}) | ${t.name}`, 0, -45);
