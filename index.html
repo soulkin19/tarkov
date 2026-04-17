@@ -94,7 +94,22 @@
         const teamName = window.location.hash.substring(1) || "Free";
         document.getElementById('team-name').innerText = teamName;
 
-        const tankSpecs = { 'heavy': { hp: 150, maxHp: 150, speed: 0.3, powerMult: 1.8, reloadMult: 1.5, size: 1.0, color: '#1a2a1a' }, 'medium': { hp: 100, maxHp: 100, speed: 0.41, powerMult: 1.0, reloadMult: 1.0, size: 1.0, color: '#2d5a27' }, 'light': { hp: 60, maxHp: 60, speed: 0.60, powerMult: 0.5, reloadMult: 0.7, size: 1.0, color: '#4a7c44' } }; const ammoTypes = { '1': { name: "HE", power: 12, reload: 10, speed: 11, color: "#e67e22", isExplosive: true }, '2': { name: "AP", power: 22, reload: 25, bounce: true, speed: 13, color: "#34495e" }, '3': { name: "APFSDS", power: 35, reload: 55, speed: 45, color: "#2c3e50" }, '4': { name: "AE", power: 8, reload: 18, bounce: true, speed: 8, color: "#f1c40f" }, '5': { name: "HESH", power: 20, reload: 35, speed: 10, color: "#9b59b6", isExplosive: true, bigExplosion: true }, '6': { name: "FS", power: 4, reload: 35, speed: 15, color: "#7f8c8d", isFlechette: true }, '7': { name: "APHE", power: 25, reload: 35, speed: 18, color: "#e74c3c", isExplosive: true }, '8': { name: "HEAT", power: 20, reload: 25, speed: 10, color: "#d35400", isExplosive: true, isCluster: true } };
+        const tankSpecs = {
+            'heavy':  { hp: 150, maxHp: 150, speed: 0.35, powerMult: 1.8, reloadMult: 1.5, size: 1.0, color: '#1a2a1a' },
+            'medium': { hp: 100, maxHp: 100, speed: 0.5,  powerMult: 1.0, reloadMult: 1.0, size: 1.0, color: '#2d5a27' },
+            'light':  { hp: 60,  maxHp: 60,  speed: 1.0,  powerMult: 0.5, reloadMult: 0.7, size: 1.0, color: '#4a7c44' }
+        };
+
+        const ammoTypes = {
+            '1': { name: "HE", power: 12, reload: 20, speed: 11, color: "#e67e22", isExplosive: true },
+            '2': { name: "AP", power: 22, reload: 25, bounce: true, speed: 13, color: "#34495e" },
+            '3': { name: "APFSDS", power: 35, reload: 55, speed: 45, color: "#2c3e50" },
+            '4': { name: "AE", power: 8, reload: 18, bounce: true, speed: 8, color: "#f1c40f" },
+            '5': { name: "HESH", power: 20, reload: 35, speed: 10, color: "#9b59b6", isExplosive: true, bigExplosion: true },
+            '6': { name: "FS", power: 4, reload: 35, speed: 15, color: "#7f8c8d", isFlechette: true },
+            '7': { name: "APHE", power: 25, reload: 35, speed: 18, color: "#e74c3c", isExplosive: true },
+            '8': { name: "HEAT", power: 20, reload: 25, speed: 10, color: "#d35400", isExplosive: true, isCluster: true }
+        };
 
         const player = {
             id: "P-" + Math.random().toString(36).substr(2, 5),
@@ -412,4 +427,4 @@
     })();
     </script>
 </body>
-</html>
+</html> このゲームで始める前にロードアウトのようなものにします。始める前に主砲(3つ選択可能)を選択します。試合中はその3つの主砲のみ使えるようにしてください。他の部分は変更せずに出力してください
