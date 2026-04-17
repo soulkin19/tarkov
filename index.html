@@ -136,16 +136,16 @@
         const HUB_NAME = "tank_v2_team_final_2026";
 
         const teamName = window.location.hash.substring(1) || "Free";
-        document.getElementById('team-name').innerText = teamName;
+        document.getElementById'team-name'.innerText = teamName;
 
         const tankSpecs = {
             'heavy':  { hp: 150, maxHp: 150, speed: 0.35, powerMult: 1.8, reloadMult: 1.5, size: 1.0, color: '#1a2a1a' },
             'medium': { hp: 100, maxHp: 100, speed: 0.5,  powerMult: 1.0, reloadMult: 1.0, size: 1.0, color: '#2d5a27' },
-            'light':  { hp: 60,  maxHp: 60,  speed: 1.0,  powerMult: 0.5, reloadMult: 0.7, size: 1.0, color: '#4a7c44' }
+            'light':  { hp: 60,  maxHp: 60,  speed: 0.6,  powerMult: 0.5, reloadMult: 0.7, size: 1.0, color: '#4a7c44' }
         };
 
         const ammoTypes = {
-            '1': { name: "HE", power: 12, reload: 20, speed: 11, color: "#e67e22", isExplosive: true },
+            '1': { name: "HE", power: 18, reload: 10, speed: 11, color: "#e67e22", isExplosive: true },
             '2': { name: "AP", power: 22, reload: 25, bounce: true, speed: 13, color: "#34495e" },
             '3': { name: "APFSDS", power: 35, reload: 55, speed: 45, color: "#2c3e50" },
             '4': { name: "AE", power: 8, reload: 18, bounce: true, speed: 8, color: "#f1c40f" },
