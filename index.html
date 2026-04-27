@@ -97,6 +97,7 @@
         <div class="label">セカンダリ武装 [Q]</div>
         <div class="opt-group">
             <button id="def-1" class="btn sys-btn selected">AT4<small>誘導ミサイル</small></button>
+            <button id="def-8" class="btn sys-btn">火炎放射器<small>近距離・貫通</small></button>
             <button id="def-6" class="btn sys-btn">ADS防御<small>被弾無効化</small></button>
             <button id="def-7" class="btn sys-btn">リモートC4<small>設置・起爆</small></button>
             <button id="def-4" class="btn sys-btn">近接信管弾<small>自動爆発</small></button>
@@ -152,7 +153,8 @@
             '5': { name: "HESH", power: 20, reload: 35, speed: 10, color: "#9b59b6", isExplosive: true, bigExplosion: true },
             '6': { name: "FS", power: 4, reload: 35, speed: 15, color: "#7f8c8d", isFlechette: true },
             '7': { name: "APHE", power: 25, reload: 35, speed: 18, color: "#e74c3c", isExplosive: true },
-            '8': { name: "HEAT", power: 20, reload: 25, speed: 10, color: "#d35400", isExplosive: true, isCluster: true }
+            '8': { name: "HEAT", power: 20, reload: 25, speed: 10, color: "#d35400", isExplosive: true, isCluster: true },
+            '9': { name: "FT", power: 3, reload: 2, speed: 9, color: "#ff4500", isFlame: true, life: 15 } // 火炎放射
         };
 
         const player = {
@@ -167,7 +169,7 @@
         let isMobileMode = false;
         let socket;
 
-        const walls = [ /* 壁データ（元のコードと同じ） */ 
+        const walls = [ 
             {x: 0, y: 0, w: worldWidth, h: 20}, {x: 0, y: worldHeight-20, w: worldWidth, h: 20},
             {x: 0, y: 0, w: 20, h: worldHeight}, {x: worldWidth-20, y: 0, w: 20, h: worldHeight},
             {x: worldWidth/2-100, y: worldHeight/2-300, w: 200, h: 40}, 
@@ -181,14 +183,18 @@
         ];
 
         // ammoボタン作成
-        const ammoList = document.getElementById('ammo-list');
-        Object.keys(ammoTypes).forEach(key => {
-            const btn = document.createElement('div');
-            btn.className = 'ammo-btn';
-            btn.innerText = key;
-            btn.onclick = () => player.currentAmmo = key;
-            ammoList.appendChild(btn);
-        });
+        function refreshAmmoUI() {
+            const ammoList = document.getElementById('ammo-list');
+            ammoList.innerHTML = "";
+            Object.keys(ammoTypes).forEach(key => {
+                if(key === '9' && player.defense !== 8) return; // 火炎放射器未選択時は非表示
+                const btn = document.createElement('div');
+                btn.className = 'ammo-btn';
+                btn.innerText = (key === '9' ? "FT" : key);
+                btn.onclick = () => player.currentAmmo = key;
+                ammoList.appendChild(btn);
+            });
+        }
 
         // スティック制御
         let stickData = { active: false, x: 0, y: 0 };
@@ -239,7 +245,7 @@
                 document.getElementById(id).classList.add('selected');
             };
         }
-        ['type-heavy','type-medium','type-light','def-1','def-4','def-6','def-7'].forEach(setupSelect);
+        ['type-heavy','type-medium','type-light','def-1','def-4','def-6','def-7','def-8'].forEach(setupSelect);
 
         document.getElementById('start-game').onclick = () => {
             player.name = prompt("名前を入力", "T34") || "Guest";
@@ -248,6 +254,7 @@
                 isMobileMode = true; 
                 document.getElementById('mobile-controls').style.display = 'block'; 
             }
+            refreshAmmoUI();
             respawn();
             initSocket();
             requestAnimationFrame(gameLoop);
@@ -265,7 +272,7 @@
             socket.onmessage = (e) => {
                 try {
                     const data = JSON.parse(e.data);
-                    if (data.auth || data.joinHub) return; // システムメッセージは無視
+                    if (data.auth || data.joinHub) return;
 
                     if (data.type === 'move' && data.id !== player.id) {
                         players[data.id] = {...data, lastUpdate: Date.now()};
@@ -312,6 +319,9 @@
             } else if(player.defense === 4) { // 近接信管
                 s = { ...base, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 30, color: "#2ecc71", isProxy: true, proxDist: 110, isExplosive: true, weaponName: "近接信管弾", life: 180 };
                 player.defenseCD = 350;
+            } else if(player.defense === 8) { // 火炎放射器選択中のQキー（即FTに切り替え）
+                player.currentAmmo = '9';
+                return;
             }
 
             if(s) {
@@ -332,6 +342,11 @@
                     shells.push(s);
                     if(socket) socket.send(JSON.stringify({toH: HUB_NAME, type: 'fire', shell: s}));
                 }
+            } else if(a.isFlame) {
+                const ang = player.turretAngle + (Math.random()-0.5)*0.15;
+                const s = { ...base, vx: Math.cos(ang)*a.speed, vy: Math.sin(ang)*a.speed, power: a.power * spec.powerMult, color: a.color, life: a.life, isFlame: true };
+                shells.push(s);
+                if(socket) socket.send(JSON.stringify({toH: HUB_NAME, type: 'fire', shell: s}));
             } else {
                 const s = { ...base, vx: Math.cos(player.turretAngle)*a.speed, vy: Math.sin(player.turretAngle)*a.speed, power: a.power * spec.powerMult, bounce: a.bounce, color: a.color, isExplosive: a.isExplosive, life: 200, bCount: 3, bigExp: a.bigExplosion };
                 shells.push(s);
@@ -343,7 +358,10 @@
 
         window.onkeydown = (e) => { 
             keys[e.key] = true; 
-            if(ammoTypes[e.key]) player.currentAmmo = e.key;
+            if(ammoTypes[e.key]) {
+                if(e.key === '9' && player.defense !== 8) return;
+                player.currentAmmo = e.key;
+            }
             if(e.key.toLowerCase()==='r') useGadget();
             if(e.key.toLowerCase()==='q') useDefense();
         };
@@ -404,7 +422,6 @@
             if(player.adsActive > 0) player.adsActive--;
             if(player.shake > 0) player.shake *= 0.9;
 
-            // shells更新（元のコードと同じ）
             for (let i = shells.length-1; i >= 0; i--) {
                 const s = shells[i];
                 if (player.adsActive > 0 && s.owner !== player.id && Math.hypot(player.x - s.x, player.y - s.y) < 120) {
@@ -426,9 +443,13 @@
                 if (s.owner !== player.id && Math.hypot(player.x-s.x, player.y-s.y) < 32) {
                     const isFriendly = (s.ownerTeam !== "Free" && s.ownerTeam === player.team);
                     if (!isFriendly) {
-                        if (s.isExplosive) createExplosion(s.x, s.y, s.power, s.ownerName, s.ownerTeam, s.owner, s.weaponName, true);
-                        else processDamage(s.power, s.ownerName, s.weaponName);
-                        shells.splice(i,1); continue;
+                        if (s.isExplosive) {
+                            createExplosion(s.x, s.y, s.power, s.ownerName, s.ownerTeam, s.owner, s.weaponName, true);
+                            shells.splice(i,1); continue;
+                        } else {
+                            processDamage(s.power, s.ownerName, s.weaponName);
+                            if(!s.isFlame) { shells.splice(i,1); continue; } // 火炎弾以外は着弾で消滅
+                        }
                     }
                 }
 
@@ -446,24 +467,14 @@
                 player.maxReload = player.reloading;
             }
 
-            // 移動データを送信（フラット形式）
             if (socket && socket.readyState === 1) {
                 socket.send(JSON.stringify({
-                    toH: HUB_NAME,
-                    type: 'move',
-                    id: player.id,
-                    x: player.x, y: player.y,
-                    angle: player.angle,
-                    tAngle: player.turretAngle,
-                    hp: player.hp,
-                    name: player.name,
-                    team: player.team,
-                    tankType: player.type,
-                    adsActive: player.adsActive
+                    toH: HUB_NAME, type: 'move', id: player.id, x: player.x, y: player.y,
+                    angle: player.angle, tAngle: player.turretAngle, hp: player.hp,
+                    name: player.name, team: player.team, tankType: player.type, adsActive: player.adsActive
                 }));
             }
 
-            // UI更新
             document.getElementById('hpDisplay').innerText = `HP: ${Math.ceil(player.hp)}`;
             document.getElementById('weaponDisplay').innerText = ammoTypes[player.currentAmmo].name;
             document.getElementById('gadget-bar').style.width = (100 - Math.min(100, (player.gadgetCD/600)*100)) + "%";
@@ -481,7 +492,7 @@
 
             shells.forEach(s => { 
                 ctx.fillStyle = s.color; 
-                ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, Math.PI * 2); ctx.fill(); 
+                ctx.beginPath(); ctx.arc(s.x, s.y, s.isFlame ? 10 : 6, 0, Math.PI * 2); ctx.fill(); 
             });
 
             const drawT = (t, isSelf) => {
