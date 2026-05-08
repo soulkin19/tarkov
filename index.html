@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tank Online: Tactical Team</title>
+    <title>Tank Online: Tactical Team v2.1</title>
     <style>
         * { touch-action: none; -webkit-user-select: none; user-select: none; box-sizing: border-box; }
         body { 
@@ -101,6 +101,7 @@
             <button id="def-6" class="btn sys-btn">ADS防御<small>被弾無効化</small></button>
             <button id="def-7" class="btn sys-btn">リモートC4<small>設置・起爆</small></button>
             <button id="def-4" class="btn sys-btn">近接信管弾<small>自動爆発</small></button>
+            <button id="def-9" class="btn sys-btn">地雷<small>設置型トラップ</small></button>
         </div>
 
         <button id="start-game" class="btn" style="background:#f1c40f; color:#000; width:320px; font-size:22px; margin-top:30px;">BATTLE START</button>
@@ -146,6 +147,7 @@
         };
 
         const ammoTypes = {
+            '0': { name: "MG", power: 4, reload: 4, speed: 22, color: "#f39c12" }, // 新規：機関砲
             '1': { name: "HE", power: 18, reload: 10, speed: 11, color: "#e67e22", isExplosive: true },
             '2': { name: "AP", power: 22, reload: 25, bounce: true, speed: 13, color: "#34495e" },
             '3': { name: "APFSDS", power: 35, reload: 55, speed: 45, color: "#2c3e50" },
@@ -154,7 +156,7 @@
             '6': { name: "FS", power: 4, reload: 35, speed: 15, color: "#7f8c8d", isFlechette: true },
             '7': { name: "APHE", power: 25, reload: 35, speed: 18, color: "#e74c3c", isExplosive: true },
             '8': { name: "HEAT", power: 20, reload: 25, speed: 10, color: "#d35400", isExplosive: true, isCluster: true },
-            '9': { name: "FT", power: 0.3, reload: 2, speed: 9, color: "#ff4500", isFlame: true, life: 45 } // 火炎放射
+            '9': { name: "FT", power: 0.3, reload: 2, speed: 9, color: "#ff4500", isFlame: true, life: 45 } 
         };
 
         const player = {
@@ -182,12 +184,11 @@
             {x: 200, y: worldHeight-280, w: 80, h: 80}, {x: worldWidth-280, y: worldHeight-280, w: 80, h: 80}
         ];
 
-        // ammoボタン作成
         function refreshAmmoUI() {
             const ammoList = document.getElementById('ammo-list');
             ammoList.innerHTML = "";
             Object.keys(ammoTypes).forEach(key => {
-                if(key === '9' && player.defense !== 8) return; // 火炎放射器未選択時は非表示
+                if(key === '9' && player.defense !== 8) return; 
                 const btn = document.createElement('div');
                 btn.className = 'ammo-btn';
                 btn.innerText = (key === '9' ? "FT" : key);
@@ -196,7 +197,6 @@
             });
         }
 
-        // スティック制御
         let stickData = { active: false, x: 0, y: 0 };
         const stickEl = document.getElementById('stick'), stickArea = document.getElementById('stick-area');
         stickArea.addEventListener('touchstart', (e) => { stickData.active = true; handleStick(e); });
@@ -213,7 +213,6 @@
             stickEl.style.transform = `translate(calc(-50% + ${Math.cos(angle)*dist}px), calc(-50% + ${Math.sin(angle)*dist}px))`;
         }
 
-        // モバイルボタン
         document.getElementById('btn-fire').addEventListener('touchstart', (e) => { e.preventDefault(); keys[' '] = true; });
         document.getElementById('btn-fire').addEventListener('touchend', () => keys[' '] = false);
         document.getElementById('btn-gadget').addEventListener('touchstart', (e) => { e.preventDefault(); useGadget(); });
@@ -245,7 +244,7 @@
                 document.getElementById(id).classList.add('selected');
             };
         }
-        ['type-heavy','type-medium','type-light','def-1','def-4','def-6','def-7','def-8'].forEach(setupSelect);
+        ['type-heavy','type-medium','type-light','def-1','def-4','def-6','def-7','def-8','def-9'].forEach(setupSelect);
 
         document.getElementById('start-game').onclick = () => {
             player.name = prompt("名前を入力", "T34") || "Guest";
@@ -262,34 +261,21 @@
 
         function initSocket() {
             socket = new WebSocket('wss://cloud.achex.ca/');
-
             socket.onopen = () => {
-                console.log('%c✅ Achex Cloud に接続成功', 'color:#2ecc71; font-weight:bold');
                 socket.send(JSON.stringify({auth: player.id, passwd: "pass"}));
                 socket.send(JSON.stringify({joinHub: HUB_NAME}));
             };
-
             socket.onmessage = (e) => {
                 try {
                     const data = JSON.parse(e.data);
                     if (data.auth || data.joinHub) return;
-
-                    if (data.type === 'move' && data.id !== player.id) {
-                        players[data.id] = {...data, lastUpdate: Date.now()};
-                    }
+                    if (data.type === 'move' && data.id !== player.id) players[data.id] = {...data, lastUpdate: Date.now()};
                     if (data.type === 'fire') shells.push(data.shell);
-                    if (data.type === 'boom') {
-                        createExplosion(data.x, data.y, data.power, data.ownerName, data.ownerTeam, data.ownerId, data.weaponName, false);
-                    }
+                    if (data.type === 'boom') createExplosion(data.x, data.y, data.power, data.ownerName, data.ownerTeam, data.ownerId, data.weaponName, false);
                     if (data.type === 'kill') showKillLog(data.victim, data.attacker, data.weaponName);
-                    if (data.type === 'c4_placed') {
-                        if (players[data.ownerId]) players[data.ownerId].c4 = { x: data.x, y: data.y };
-                    }
+                    if (data.type === 'c4_placed') if (players[data.ownerId]) players[data.ownerId].c4 = { x: data.x, y: data.y };
                 } catch(err) {}
             };
-
-            socket.onerror = (err) => console.error('WebSocketエラー:', err);
-            socket.onclose = () => console.warn('⚠️ WebSocket切断されました');
         }
 
         function useGadget() {
@@ -319,9 +305,11 @@
             } else if(player.defense === 4) { // 近接信管
                 s = { ...base, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 30, color: "#2ecc71", isProxy: true, proxDist: 110, isExplosive: true, weaponName: "近接信管弾", life: 180 };
                 player.defenseCD = 350;
-            } else if(player.defense === 8) { // 火炎放射器選択中のQキー（即FTに切り替え）
-                player.currentAmmo = '9';
-                return;
+            } else if(player.defense === 9) { // 新規：地雷
+                s = { ...base, vx: 0, vy: 0, power: 55, color: "#2c3e50", isExplosive: true, isMine: true, weaponName: "地雷", life: 5000 };
+                player.defenseCD = 450;
+            } else if(player.defense === 8) {
+                player.currentAmmo = '9'; return;
             }
 
             if(s) {
@@ -352,8 +340,8 @@
                 shells.push(s);
                 if(socket) socket.send(JSON.stringify({toH: HUB_NAME, type: 'fire', shell: s}));
             }
-            player.vx -= Math.cos(player.turretAngle) * (a.power * 0.1);
-            player.vy -= Math.sin(player.turretAngle) * (a.power * 0.1);
+            player.vx -= Math.cos(player.turretAngle) * (a.power * 0.05);
+            player.vy -= Math.sin(player.turretAngle) * (a.power * 0.05);
         }
 
         window.onkeydown = (e) => { 
@@ -370,17 +358,11 @@
         function createExplosion(x, y, power, ownerName, ownerTeam, ownerId, weaponName, isOwner) {
             const isCritical = power >= 25;
             explosions.push({ x, y, r: 0, life: isCritical ? 45 : 25, critical: isCritical });
-            
             const dist = Math.hypot(player.x - x, player.y - y);
             if (dist < (isCritical ? 130 : 90)) {
-                const isFriendly = (ownerTeam !== "Free" && ownerTeam === player.team && ownerId !== player.id);
-                if (!isFriendly) {
-                    processDamage(power * 0.8, ownerName, weaponName);
-                }
+                if (!(ownerTeam !== "Free" && ownerTeam === player.team && ownerId !== player.id)) processDamage(power * 0.8, ownerName, weaponName);
             }
-            if (isOwner && socket) {
-                socket.send(JSON.stringify({toH: HUB_NAME, type: 'boom', x, y, power, ownerName, ownerTeam, ownerId, weaponName}));
-            }
+            if (isOwner && socket) socket.send(JSON.stringify({toH: HUB_NAME, type: 'boom', x, y, power, ownerName, ownerTeam, ownerId, weaponName}));
         }
 
         function processDamage(power, ownerName, weaponName) {
@@ -399,9 +381,8 @@
             if (isMobileMode && stickData.active) {
                 const targetAngle = Math.atan2(stickData.y, stickData.x);
                 player.angle = targetAngle; player.turretAngle = targetAngle;
-                const force = Math.hypot(stickData.x, stickData.y);
-                player.vx += Math.cos(targetAngle) * force * moveSpeed;
-                player.vy += Math.sin(targetAngle) * force * moveSpeed;
+                player.vx += Math.cos(targetAngle) * Math.hypot(stickData.x, stickData.y) * moveSpeed;
+                player.vy += Math.sin(targetAngle) * Math.hypot(stickData.x, stickData.y) * moveSpeed;
             } else {
                 if (keys['ArrowUp']) { player.vx += Math.cos(player.angle)*moveSpeed; player.vy += Math.sin(player.angle)*moveSpeed; }
                 if (keys['ArrowDown']) { player.vx -= Math.cos(player.angle)*moveSpeed*0.5; player.vy -= Math.sin(player.angle)*moveSpeed*0.5; }
@@ -411,9 +392,7 @@
             }
 
             player.vx *= 0.91; player.vy *= 0.91;
-            if (!isPointInWall(player.x + player.vx, player.y + player.vy, 22)) { 
-                player.x += player.vx; player.y += player.vy; 
-            }
+            if (!isPointInWall(player.x + player.vx, player.y + player.vy, 22)) { player.x += player.vx; player.y += player.vy; }
 
             if(player.repairPool > 0) { const amt = 0.15; player.hp = Math.min(player.maxHp, player.hp + amt); player.repairPool -= amt; }
             if(player.reloading > 0) player.reloading--;
@@ -435,24 +414,23 @@
                 const hitW = walls.find(w => s.x > w.x && s.x < w.x + w.w && s.y > w.y && s.y < w.y + w.h);
                 if (hitW) {
                     if (s.bounce && s.bCount-- > 0) { 
-                        if (s.x - s.vx <= hitW.x || s.x - s.vx >= hitW.x + hitW.w) s.vx *= -1; 
-                        else s.vy *= -1; 
+                        if (s.x - s.vx <= hitW.x || s.x - s.vx >= hitW.x + hitW.w) s.vx *= -1; else s.vy *= -1; 
                     } else s.life = 0;
                 }
                 
-                if (s.owner !== player.id && Math.hypot(player.x-s.x, player.y-s.y) < 32) {
-                    const isFriendly = (s.ownerTeam !== "Free" && s.ownerTeam === player.team);
-                    if (!isFriendly) {
+                // 当たり判定：地雷なら判定半径を広げる
+                let hitDist = (s.isMine) ? 45 : 32;
+                if (s.owner !== player.id && Math.hypot(player.x-s.x, player.y-s.y) < hitDist) {
+                    if (!(s.ownerTeam !== "Free" && s.ownerTeam === player.team)) {
                         if (s.isExplosive) {
                             createExplosion(s.x, s.y, s.power, s.ownerName, s.ownerTeam, s.owner, s.weaponName, true);
                             shells.splice(i,1); continue;
                         } else {
                             processDamage(s.power, s.ownerName, s.weaponName);
-                            if(!s.isFlame) { shells.splice(i,1); continue; } // 火炎弾以外は着弾で消滅
+                            if(!s.isFlame) { shells.splice(i,1); continue; }
                         }
                     }
                 }
-
                 if (s.life <= 0) {
                     if (s.isExplosive) createExplosion(s.x, s.y, s.bigExp ? 45 : s.power, s.ownerName, s.ownerTeam, s.owner, s.weaponName, s.owner === player.id);
                     shells.splice(i,1);
@@ -482,8 +460,7 @@
         }
 
         function draw() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
             ctx.save();
             if(player.shake > 0) ctx.translate((Math.random()-0.5)*player.shake, (Math.random()-0.5)*player.shake);
             ctx.translate(canvas.width/2 - player.x, canvas.height/2 - player.y);
@@ -492,7 +469,14 @@
 
             shells.forEach(s => { 
                 ctx.fillStyle = s.color; 
-                ctx.beginPath(); ctx.arc(s.x, s.y, s.isFlame ? 10 : 6, 0, Math.PI * 2); ctx.fill(); 
+                ctx.beginPath(); 
+                if(s.isMine) {
+                    ctx.rect(s.x-8, s.y-8, 16, 16); // 地雷は四角形
+                    ctx.strokeStyle = "#000"; ctx.lineWidth = 1; ctx.stroke();
+                } else {
+                    ctx.arc(s.x, s.y, s.isFlame ? 10 : 6, 0, Math.PI * 2);
+                }
+                ctx.fill(); 
             });
 
             const drawT = (t, isSelf) => {
@@ -500,25 +484,16 @@
                 const isAlly = (t.team !== "Free" && t.team === player.team);
                 ctx.save(); ctx.translate(t.x, t.y);
                 if (t.adsActive > 0) {
-                    ctx.strokeStyle = "rgba(0, 255, 255, 0.6)"; ctx.lineWidth = 3;
-                    ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.arc(0, 0, 120, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+                    ctx.strokeStyle = "rgba(0, 255, 255, 0.6)"; ctx.lineWidth = 3; ctx.setLineDash([5, 5]);
+                    ctx.beginPath(); ctx.arc(0, 0, 120, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
                 }
-                ctx.save(); ctx.rotate(t.angle); 
-                ctx.fillStyle = spec.color; ctx.fillRect(-22*s,-18*s,44*s,36*s); ctx.strokeRect(-22*s,-18*s,44*s,36*s); 
-                ctx.restore();
-                ctx.save(); ctx.rotate(t.tAngle || t.turretAngle); 
-                ctx.fillStyle = spec.color; ctx.fillRect(-14*s,-14*s,28*s,28*s); ctx.strokeRect(-14*s,-14*s,28*s,28*s);
-                ctx.fillStyle="#333"; ctx.fillRect(0,-5*s,40*s,10*s); 
-                ctx.restore();
-                
+                ctx.save(); ctx.rotate(t.angle); ctx.fillStyle = spec.color; ctx.fillRect(-22*s,-18*s,44*s,36*s); ctx.strokeRect(-22*s,-18*s,44*s,36*s); ctx.restore();
+                ctx.save(); ctx.rotate(t.tAngle || t.turretAngle); ctx.fillStyle = spec.color; ctx.fillRect(-14*s,-14*s,28*s,28*s); ctx.strokeRect(-14*s,-14*s,28*s,28*s);
+                ctx.fillStyle="#333"; ctx.fillRect(0,-5*s,40*s,10*s); ctx.restore();
                 ctx.fillStyle = isSelf ? "#000" : (isAlly ? "#2980b9" : "#c0392b");
-                ctx.font = `bold 14px Arial`; ctx.textAlign="center"; 
-                ctx.fillText(`${t.team} | ${t.name}`, 0, -48);
-                
+                ctx.font = `bold 14px Arial`; ctx.textAlign="center"; ctx.fillText(`${t.team} | ${t.name}`, 0, -48);
                 ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(-25,-37,50,6);
-                ctx.fillStyle = (t.hp/spec.maxHp) > 0.3 ? "#2ecc71" : "#e74c3c"; 
-                ctx.fillRect(-25,-37,50*(t.hp/spec.maxHp),6);
-                ctx.restore();
+                ctx.fillStyle = (t.hp/spec.maxHp) > 0.3 ? "#2ecc71" : "#e74c3c"; ctx.fillRect(-25,-37,50*(t.hp/spec.maxHp),6); ctx.restore();
             };
 
             for (let id in players) if(Date.now()-players[id].lastUpdate < 3000) drawT(players[id], false);
@@ -539,11 +514,7 @@
             setTimeout(()=>{ l.innerHTML = ""; }, 5000); 
         }
 
-        function gameLoop() { 
-            update(); 
-            draw(); 
-            requestAnimationFrame(gameLoop); 
-        }
+        function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
     })();
     </script>
 </body>
