@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tank Online: Tactical Team v2.1</title>
+    <title>Tank Online: Tactical Team v2.2</title>
     <style>
         * { touch-action: none; -webkit-user-select: none; user-select: none; box-sizing: border-box; }
         body { 
@@ -97,6 +97,7 @@
         <div class="label">セカンダリ武装 [Q]</div>
         <div class="opt-group">
             <button id="def-1" class="btn sys-btn selected">AT4<small>誘導ミサイル</small></button>
+            <button id="def-2" class="btn sys-btn">ダッシュ<small>瞬間的な高速移動</small></button>
             <button id="def-8" class="btn sys-btn">火炎放射器<small>近距離・貫通</small></button>
             <button id="def-6" class="btn sys-btn">ADS防御<small>被弾無効化</small></button>
             <button id="def-7" class="btn sys-btn">リモートC4<small>設置・起爆</small></button>
@@ -147,7 +148,7 @@
         };
 
         const ammoTypes = {
-            '0': { name: "MG", power: 4, reload: 2, speed: 22, color: "#f39c12" }, // 新規：機関砲
+            '0': { name: "MG", power: 4, reload: 4, speed: 22, color: "#f39c12" },
             '1': { name: "HE", power: 18, reload: 10, speed: 11, color: "#e67e22", isExplosive: true },
             '2': { name: "AP", power: 22, reload: 25, bounce: true, speed: 13, color: "#34495e" },
             '3': { name: "APFSDS", power: 35, reload: 55, speed: 45, color: "#2c3e50" },
@@ -156,7 +157,8 @@
             '6': { name: "FS", power: 4, reload: 35, speed: 15, color: "#7f8c8d", isFlechette: true },
             '7': { name: "APHE", power: 25, reload: 35, speed: 18, color: "#e74c3c", isExplosive: true },
             '8': { name: "HEAT", power: 20, reload: 25, speed: 10, color: "#d35400", isExplosive: true, isCluster: true },
-            '9': { name: "FT", power: 0.3, reload: 2, speed: 9, color: "#ff4500", isFlame: true, life: 45 } 
+            '9': { name: "FT", power: 0.3, reload: 2, speed: 9, color: "#ff4500", isFlame: true, life: 45 },
+            'x': { name: "ACID", power: 2, reload: 20, speed: 12, color: "#27ae60", isAcid: true } // 新規：アシッド弾
         };
 
         const player = {
@@ -164,7 +166,8 @@
             type: 'medium', team: teamName, x: 0, y: 0, angle: 0, turretAngle: 0, vx: 0, vy: 0, hp: 100, maxHp: 100,
             reloading: 0, maxReload: 0, currentAmmo: '1', name: "Guest",
             gadgetCD: 0, repairPool: 0,
-            defense: 1, defenseCD: 0, adsActive: 0, c4: null, shake: 0
+            defense: 1, defenseCD: 0, adsActive: 0, c4: null, shake: 0,
+            acidTimer: 0, lastAttacker: "", lastWeapon: "" // 毒ダメージ管理用
         };
 
         const players = {}, shells = [], explosions = [], keys = {};
@@ -191,7 +194,7 @@
                 if(key === '9' && player.defense !== 8) return; 
                 const btn = document.createElement('div');
                 btn.className = 'ammo-btn';
-                btn.innerText = (key === '9' ? "FT" : key);
+                btn.innerText = (key === '9' ? "FT" : (key === 'x' ? "AC" : key));
                 btn.onclick = () => player.currentAmmo = key;
                 ammoList.appendChild(btn);
             });
@@ -232,6 +235,7 @@
             const spec = tankSpecs[player.type];
             player.hp = spec.hp; player.maxHp = spec.maxHp;
             player.vx = 0; player.vy = 0; player.repairPool = 0; player.c4 = null;
+            player.acidTimer = 0; // 復活時に毒を解除
         }
 
         function setupSelect(id) {
@@ -244,7 +248,7 @@
                 document.getElementById(id).classList.add('selected');
             };
         }
-        ['type-heavy','type-medium','type-light','def-1','def-4','def-6','def-7','def-8','def-9'].forEach(setupSelect);
+        ['type-heavy','type-medium','type-light','def-1','def-2','def-4','def-6','def-7','def-8','def-9'].forEach(setupSelect);
 
         document.getElementById('start-game').onclick = () => {
             player.name = prompt("名前を入力", "T34") || "Guest";
@@ -292,6 +296,14 @@
             if(player.defense === 1) { // AT4
                 s = { ...base, vx: Math.cos(tAngle)*6, vy: Math.sin(tAngle)*6, power: 40, color: "#c0392b", isMissile: true, isExplosive: true, weaponName: "AT4", life: 500 };
                 player.defenseCD = 240;
+            } else if(player.defense === 2) { // 新規：ダッシュ
+                player.vx += Math.cos(player.angle) * 35;
+                player.vy += Math.sin(player.angle) * 35;
+                player.defenseCD = 300;
+                // ダッシュ時の砂煙エフェクト
+                for(let i=0; i<4; i++) {
+                    explosions.push({ x: player.x - Math.cos(player.angle)*20, y: player.y - Math.sin(player.angle)*20, r: 0, life: 20, critical: false, isSmoke: true });
+                }
             } else if(player.defense === 6) { // ADS
                 player.adsActive = 300; player.defenseCD = 700;
             } else if(player.defense === 7) { // C4
@@ -305,8 +317,8 @@
             } else if(player.defense === 4) { // 近接信管
                 s = { ...base, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 30, color: "#2ecc71", isProxy: true, proxDist: 110, isExplosive: true, weaponName: "近接信管弾", life: 180 };
                 player.defenseCD = 350;
-            } else if(player.defense === 9) { // 新規：地雷
-                s = { ...base, vx: 0, vy: 0, power: 80, color: "#2c3e50", isExplosive: true, isMine: true, weaponName: "地雷", life: 5000 };
+            } else if(player.defense === 9) { // 地雷
+                s = { ...base, vx: 0, vy: 0, power: 55, color: "#2c3e50", isExplosive: true, isMine: true, weaponName: "地雷", life: 5000 };
                 player.defenseCD = 450;
             } else if(player.defense === 8) {
                 player.currentAmmo = '9'; return;
@@ -336,7 +348,7 @@
                 shells.push(s);
                 if(socket) socket.send(JSON.stringify({toH: HUB_NAME, type: 'fire', shell: s}));
             } else {
-                const s = { ...base, vx: Math.cos(player.turretAngle)*a.speed, vy: Math.sin(player.turretAngle)*a.speed, power: a.power * spec.powerMult, bounce: a.bounce, color: a.color, isExplosive: a.isExplosive, life: 200, bCount: 3, bigExp: a.bigExplosion };
+                const s = { ...base, vx: Math.cos(player.turretAngle)*a.speed, vy: Math.sin(player.turretAngle)*a.speed, power: a.power * spec.powerMult, bounce: a.bounce, color: a.color, isExplosive: a.isExplosive, life: 200, bCount: 3, bigExp: a.bigExplosion, isAcid: a.isAcid };
                 shells.push(s);
                 if(socket) socket.send(JSON.stringify({toH: HUB_NAME, type: 'fire', shell: s}));
             }
@@ -394,6 +406,16 @@
             player.vx *= 0.91; player.vy *= 0.91;
             if (!isPointInWall(player.x + player.vx, player.y + player.vy, 22)) { player.x += player.vx; player.y += player.vy; }
 
+            // アシッド（毒）ダメージの継続処理
+            if (player.acidTimer > 0) {
+                player.acidTimer--;
+                if (player.acidTimer % 30 === 0) { // 0.5秒ごとにダメージ
+                    processDamage(3, player.lastAttacker || "Acid", player.lastWeapon || "ACID");
+                    // 毒エフェクト
+                    explosions.push({ x: player.x + (Math.random()-0.5)*30, y: player.y + (Math.random()-0.5)*30, r: 0, life: 15, critical: false, isAcid: true });
+                }
+            }
+
             if(player.repairPool > 0) { const amt = 0.15; player.hp = Math.min(player.maxHp, player.hp + amt); player.repairPool -= amt; }
             if(player.reloading > 0) player.reloading--;
             if(player.gadgetCD > 0) player.gadgetCD--;
@@ -418,7 +440,6 @@
                     } else s.life = 0;
                 }
                 
-                // 当たり判定：地雷なら判定半径を広げる
                 let hitDist = (s.isMine) ? 45 : 32;
                 if (s.owner !== player.id && Math.hypot(player.x-s.x, player.y-s.y) < hitDist) {
                     if (!(s.ownerTeam !== "Free" && s.ownerTeam === player.team)) {
@@ -427,6 +448,12 @@
                             shells.splice(i,1); continue;
                         } else {
                             processDamage(s.power, s.ownerName, s.weaponName);
+                            // アシッド弾が当たった場合、毒タイマーを付与
+                            if (s.isAcid) {
+                                player.acidTimer = 300; // 5秒間 (60fps)
+                                player.lastAttacker = s.ownerName;
+                                player.lastWeapon = s.weaponName;
+                            }
                             if(!s.isFlame) { shells.splice(i,1); continue; }
                         }
                     }
@@ -471,7 +498,7 @@
                 ctx.fillStyle = s.color; 
                 ctx.beginPath(); 
                 if(s.isMine) {
-                    ctx.rect(s.x-8, s.y-8, 16, 16); // 地雷は四角形
+                    ctx.rect(s.x-8, s.y-8, 16, 16);
                     ctx.strokeStyle = "#000"; ctx.lineWidth = 1; ctx.stroke();
                 } else {
                     ctx.arc(s.x, s.y, s.isFlame ? 10 : 6, 0, Math.PI * 2);
@@ -501,8 +528,16 @@
 
             explosions.forEach(b => { 
                 const grad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
-                grad.addColorStop(0, `rgba(255, ${b.critical?150:200}, 50, ${b.life/30})`);
-                grad.addColorStop(1, `rgba(200, 50, 0, 0)`);
+                if (b.isAcid) {
+                    grad.addColorStop(0, `rgba(46, 204, 113, ${b.life/15})`);
+                    grad.addColorStop(1, `rgba(39, 174, 96, 0)`);
+                } else if (b.isSmoke) {
+                    grad.addColorStop(0, `rgba(200, 200, 200, ${b.life/20})`);
+                    grad.addColorStop(1, `rgba(150, 150, 150, 0)`);
+                } else {
+                    grad.addColorStop(0, `rgba(255, ${b.critical?150:200}, 50, ${b.life/30})`);
+                    grad.addColorStop(1, `rgba(200, 50, 0, 0)`);
+                }
                 ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill(); 
             });
             ctx.restore();
