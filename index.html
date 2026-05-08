@@ -147,7 +147,7 @@
         };
 
         const ammoTypes = {
-            '0': { name: "MG", power: 4, reload: 4, speed: 22, color: "#f39c12" }, // 新規：機関砲
+            '0': { name: "MG", power: 4, reload: 2, speed: 22, color: "#f39c12" }, // 新規：機関砲
             '1': { name: "HE", power: 18, reload: 10, speed: 11, color: "#e67e22", isExplosive: true },
             '2': { name: "AP", power: 22, reload: 25, bounce: true, speed: 13, color: "#34495e" },
             '3': { name: "APFSDS", power: 35, reload: 55, speed: 45, color: "#2c3e50" },
@@ -306,7 +306,7 @@
                 s = { ...base, vx: Math.cos(tAngle)*14, vy: Math.sin(tAngle)*14, power: 30, color: "#2ecc71", isProxy: true, proxDist: 110, isExplosive: true, weaponName: "近接信管弾", life: 180 };
                 player.defenseCD = 350;
             } else if(player.defense === 9) { // 新規：地雷
-                s = { ...base, vx: 0, vy: 0, power: 55, color: "#2c3e50", isExplosive: true, isMine: true, weaponName: "地雷", life: 5000 };
+                s = { ...base, vx: 0, vy: 0, power: 80, color: "#2c3e50", isExplosive: true, isMine: true, weaponName: "地雷", life: 5000 };
                 player.defenseCD = 450;
             } else if(player.defense === 8) {
                 player.currentAmmo = '9'; return;
