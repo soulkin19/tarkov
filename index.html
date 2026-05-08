@@ -138,7 +138,7 @@
         const worldWidth = 2000, worldHeight = 1500;
         const HUB_NAME = "tank_v2_team_final_2026";
 
-        const teamName = window.location.hash.substring(1) || "Free";f665rt65rtttr
+        const teamName = window.location.hash.substring(1) || "Free";
         document.getElementById('team-name').innerText = teamName;
 
         const tankSpecs = {
@@ -264,7 +264,7 @@
         };
 
         function initSocket() {
-            socket = new WebSocket('wss://cloud.achex.ca/unkk');
+            socket = new WebSocket('wss://cloud.achex.ca/');
             socket.onopen = () => {
                 socket.send(JSON.stringify({auth: player.id, passwd: "pass"}));
                 socket.send(JSON.stringify({joinHub: HUB_NAME}));
